@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 # The Thoughts Within - Automated Instagram Poetry Poster
-# Fetches a random poem from your Wix blog, picks a random stanza,
-# creates a beautiful image + video with random music, posts to @the.thoughtswithin
 
 import os
 import glob
@@ -23,78 +21,87 @@ PAGE_ACCESS_TOKEN = os.environ.get("PAGE_ACCESS_TOKEN", "")
 IMGBB_API_KEY = os.environ.get("IMGBB_API_KEY", "")
 
 BLOG_RSS_URL = "https://anvaykumar.wixsite.com/thethoughtswithin/blog-feed.xml"
-BLOG_URL = "https://anvaykumar.wixsite.com/thethoughtswithin/blog"
-MUSIC_FOLDER = "music"  # Folder containing your MP3 files
+MUSIC_FOLDER = "music"
 
 IMG_WIDTH = 1080
 IMG_HEIGHT = 1080
 BACKGROUND_COLORS = [
-    "#1a1a2e",  # Deep navy
-    "#16213e",  # Dark blue
-    "#0f3460",  # Royal blue
-    "#1b1b2f",  # Dark purple
-    "#2c2c54",  # Purple
-    "#191919",  # Near black
+    "#1a1a2e", "#16213e", "#0f3460", "#1b1b2f", "#2c2c54", "#191919",
 ]
 
 HASHTAGS = "#hindi #hindikavita #hindishayari #poetry #poem #indianpoetry #thoughtswithin #shayari #kavita #hindipoetry #poetrycommunity #wordsmith #poetrylovers #hindiwriters #dil"
 
+# Navigation/UI text to filter out
+JUNK_PHRASES = [
+    "All Posts", "My Poems", "The Thought Circle", "Search",
+    "Recent Posts", "See All", "Subscribe", "Connect with me",
+    "bottom of page", "top of page", "min read", "Updated:",
+    "Tags:", "Name", "Email", "Join", "Submit", "© 20"
+]
+
 
 # ============================================================
-# STEP 1: Fetch poems from Wix blog
+# STEP 1: Fetch poems from RSS (content is embedded in RSS)
 # ============================================================
 def fetch_blog_posts():
-    print("Fetching poems from blog...")
-
-    try:
-        feed = feedparser.parse(BLOG_RSS_URL)
-        if feed.entries:
-            print(f"Found {len(feed.entries)} poems via RSS")
-            return feed.entries
-    except Exception as e:
-        print(f"RSS failed: {e}")
-
-    print("Trying direct scrape...")
-    headers = {"User-Agent": "Mozilla/5.0"}
-    response = requests.get(BLOG_URL, headers=headers, timeout=15)
-    soup = BeautifulSoup(response.text, "html.parser")
-
-    links = []
-    for a in soup.find_all("a", href=True):
-        href = a["href"]
-        if "/post/" in href:
-            full_url = href if href.startswith("http") else f"https://anvaykumar.wixsite.com{href}"
-            if full_url not in links:
-                links.append(full_url)
-
-    print(f"Found {len(links)} poem links via scraping")
-    return [{"link": url, "title": url.split("/post/")[-1]} for url in links]
+    print("Fetching poems from RSS feed...")
+    feed = feedparser.parse(BLOG_RSS_URL)
+    if not feed.entries:
+        raise Exception("Could not fetch RSS feed")
+    print(f"Found {len(feed.entries)} poems")
+    return feed.entries
 
 
-def fetch_poem_content(post):
-    url = post.get("link") or post.get("url", "")
-    if not url:
+def extract_poem_from_rss(entry):
+    """Extract poem text from RSS entry content — this has the actual poem."""
+    # RSS entries have content/summary with HTML
+    content_html = ""
+    if hasattr(entry, "content") and entry.content:
+        content_html = entry.content[0].value
+    elif hasattr(entry, "summary"):
+        content_html = entry.summary
+
+    if not content_html:
         return None
 
-    try:
-        headers = {"User-Agent": "Mozilla/5.0"}
-        response = requests.get(url, headers=headers, timeout=15)
-        soup = BeautifulSoup(response.text, "html.parser")
+    # Parse HTML and extract text
+    soup = BeautifulSoup(content_html, "html.parser")
+    
+    # Remove script and style tags
+    for tag in soup(["script", "style"]):
+        tag.decompose()
 
-        for selector in ["div.post-content", "div[data-hook='post-description']", "article", "main"]:
-            content = soup.select_one(selector)
-            if content:
-                text = content.get_text(separator="\n").strip()
-                if len(text) > 100:
-                    return text
+    # Get text line by line
+    raw_text = soup.get_text(separator="\n")
+    
+    # Clean up lines
+    lines = []
+    for line in raw_text.split("\n"):
+        line = line.strip()
+        # Skip empty lines and junk navigation text
+        if not line:
+            lines.append("")
+            continue
+        if any(junk.lower() in line.lower() for junk in JUNK_PHRASES):
+            continue
+        if len(line) < 3:
+            continue
+        lines.append(line)
 
-        paragraphs = soup.find_all("p")
-        text = "\n".join(p.get_text() for p in paragraphs if p.get_text().strip())
-        return text if len(text) > 50 else None
+    # Remove consecutive blank lines
+    cleaned = []
+    prev_blank = False
+    for line in lines:
+        if line == "":
+            if not prev_blank:
+                cleaned.append("")
+            prev_blank = True
+        else:
+            cleaned.append(line)
+            prev_blank = False
 
-    except Exception as e:
-        print(f"Error fetching poem: {e}")
-        return None
+    poem_text = "\n".join(cleaned).strip()
+    return poem_text if len(poem_text) > 30 else None
 
 
 # ============================================================
@@ -103,16 +110,26 @@ def fetch_poem_content(post):
 def pick_random_stanza(poem_text, poem_title):
     print("Picking a random stanza...")
 
+    # Split into stanzas by blank lines
     stanzas = [s.strip() for s in poem_text.split("\n\n") if s.strip()]
-    good_stanzas = [s for s in stanzas if len(s.split("\n")) >= 2 and len(s) < 300]
+
+    # Filter: at least 2 lines, not too long, no junk
+    good_stanzas = []
+    for s in stanzas:
+        lines = [l for l in s.split("\n") if l.strip()]
+        if len(lines) >= 2 and len(s) < 400:
+            # Make sure it doesn't contain junk
+            if not any(junk.lower() in s.lower() for junk in JUNK_PHRASES):
+                good_stanzas.append(s)
 
     if not good_stanzas:
-        good_stanzas = stanzas
+        print("Warning: No good stanzas found, using full poem text")
+        good_stanzas = stanzas if stanzas else [poem_text[:300]]
 
     stanza = random.choice(good_stanzas)
-    print(f"Selected stanza: {stanza[:60]}...")
+    print(f"Selected stanza ({len(stanza)} chars): {stanza[:80]}...")
 
-    caption = f"A verse from '{poem_title}'\n\nRead the full poem at the link in bio.\n\n{HASHTAGS}"
+    caption = f"'{poem_title}'\n\nRead the full poem at the link in bio.\n\n{HASHTAGS}"
     return {"stanza": stanza, "caption": caption}
 
 
@@ -130,7 +147,7 @@ def create_poem_image(stanza_text, poem_title, output_path):
     draw.rectangle([border, border, IMG_WIDTH - border, IMG_HEIGHT - border], outline="#ffffff22", width=1)
     draw.rectangle([border + 8, border + 8, IMG_WIDTH - border - 8, IMG_HEIGHT - border - 8], outline="#ffffff11", width=1)
 
-    # Load fonts — tries Windows first, then Linux (for GitHub Actions)
+    # Load fonts — Windows first, then Linux (GitHub Actions)
     try:
         font_poem = ImageFont.truetype("C:/Windows/Fonts/georgia.ttf", 44)
         font_title = ImageFont.truetype("C:/Windows/Fonts/georgiai.ttf", 28)
@@ -145,36 +162,48 @@ def create_poem_image(stanza_text, poem_title, output_path):
             font_title = font_poem
             font_brand = font_poem
 
+    # Wrap text into lines
     lines = []
     for line in stanza_text.split("\n"):
         if line.strip():
-            wrapped = textwrap.wrap(line.strip(), width=26)
-            lines.extend(wrapped)
+            wrapped = textwrap.wrap(line.strip(), width=24)
+            lines.extend(wrapped if wrapped else [line.strip()])
         else:
             lines.append("")
 
-    line_height = 64
+    # Limit to max 10 lines so it fits
+    lines = [l for l in lines if l][:10]
+
+    line_height = 68
     total_text_height = len(lines) * line_height
-    start_y = (IMG_HEIGHT - total_text_height) // 2 - 40
+    start_y = max(border + 80, (IMG_HEIGHT - total_text_height) // 2 - 40)
 
-    draw.text((border + 30, start_y - 60), "\u201c", font=font_poem, fill="#ffffff33")
+    # Opening quote
+    draw.text((border + 30, start_y - 70), "\u201c", font=font_poem, fill="#ffffff33")
 
+    # Draw poem lines
     for i, line in enumerate(lines):
         y = start_y + i * line_height
         if line:
             bbox = draw.textbbox((0, 0), line, font=font_poem)
             text_width = bbox[2] - bbox[0]
             x = (IMG_WIDTH - text_width) // 2
+            # Shadow
             draw.text((x + 2, y + 2), line, font=font_poem, fill="#00000066")
+            # Main text
             draw.text((x, y), line, font=font_poem, fill="#ffffff")
 
-    draw.text((IMG_WIDTH - border - 60, start_y + total_text_height - 20), "\u201d", font=font_poem, fill="#ffffff33")
+    # Closing quote
+    end_y = start_y + total_text_height
+    draw.text((IMG_WIDTH - border - 60, end_y - 20), "\u201d", font=font_poem, fill="#ffffff33")
 
-    title_display = f"— {poem_title[:40]}"
+    # Poem title
+    title_display = f"— {poem_title[:35]}"
     bbox = draw.textbbox((0, 0), title_display, font=font_title)
     title_w = bbox[2] - bbox[0]
-    draw.text(((IMG_WIDTH - title_w) // 2, start_y + total_text_height + 20), title_display, font=font_title, fill="#ffffff88")
+    draw.text(((IMG_WIDTH - title_w) // 2, end_y + 20), title_display, font=font_title, fill="#ffffff88")
 
+    # Brand at bottom
     brand = "@the.thoughtswithin"
     bbox = draw.textbbox((0, 0), brand, font=font_brand)
     brand_w = bbox[2] - bbox[0]
@@ -186,49 +215,23 @@ def create_poem_image(stanza_text, poem_title, output_path):
 
 
 # ============================================================
-# STEP 4: Pick random music and create video
+# STEP 4: Pick random music
 # ============================================================
 def pick_random_music():
     music_files = glob.glob(os.path.join(MUSIC_FOLDER, "*.mp3"))
     if not music_files:
-        print("No music files found in music/ folder. Will post image only.")
+        print("No music files found.")
         return None
     chosen = random.choice(music_files)
     print(f"Selected music: {os.path.basename(chosen)}")
     return chosen
 
 
-def create_video(image_path, music_path, output_path, duration=30):
-    print("Creating video with music...")
-    try:
-        cmd = [
-            "ffmpeg", "-y",
-            "-loop", "1",
-            "-i", image_path,
-            "-i", music_path,
-            "-c:v", "libx264",
-            "-tune", "stillimage",
-            "-c:a", "aac",
-            "-b:a", "192k",
-            "-pix_fmt", "yuv420p",
-            "-t", str(duration),
-            "-vf", "scale=1080:1080",
-            output_path
-        ]
-        subprocess.run(cmd, check=True, capture_output=True)
-        print(f"Video created: {output_path}")
-        return output_path
-    except Exception as e:
-        print(f"Video creation failed: {e}. Will post image instead.")
-        return None
-
-
 # ============================================================
-# STEP 5: Upload and post to Instagram
+# STEP 5: Upload image and post to Instagram
 # ============================================================
 def upload_image(image_path):
-    print("Uploading image to hosting...")
-
+    print("Uploading image...")
     if not IMGBB_API_KEY:
         raise ValueError("IMGBB_API_KEY not set.")
 
@@ -286,48 +289,42 @@ def post_to_instagram(image_url, caption):
 def main():
     print("Starting The Thoughts Within auto-poster...\n")
 
-    # 1. Fetch posts
+    # 1. Fetch all poems from RSS
     posts = fetch_blog_posts()
-    if not posts:
-        print("No posts found!")
-        return
 
-    # 2. Pick random post and fetch content
+    # 2. Pick random poems until we get one with content
     poem_text = None
     selected_post = None
-    for _ in range(5):
-        post = random.choice(posts)
-        print(f"Trying: {post.get('title', 'Unknown')}")
-        poem_text = fetch_poem_content(post)
-        if poem_text and len(poem_text) > 100:
-            selected_post = post
-            break
+    random.shuffle(posts)
 
-    if not poem_text:
-        print("Could not fetch poem content")
-        return
+    for post in posts[:8]:  # Try up to 8 posts
+        title = post.get("title", "Unknown")
+        print(f"Trying: {title}")
+        poem_text = extract_poem_from_rss(post)
+        if poem_text and len(poem_text) > 50:
+            selected_post = post
+            print(f"Got poem content ({len(poem_text)} chars)")
+            break
+        else:
+            print(f"No usable content found, trying next...")
+
+    if not poem_text or not selected_post:
+        raise Exception("Could not extract poem content from any post")
 
     poem_title = selected_post.get("title", "The Thoughts Within")
-    poem_title = poem_title.replace("-", " ").strip()
 
     # 3. Pick random stanza
     stanza_data = pick_random_stanza(poem_text, poem_title)
 
-    # 4. Create image, optionally add music as video
+    # 4. Create image
     with tempfile.TemporaryDirectory() as tmpdir:
         image_path = os.path.join(tmpdir, "poem.jpg")
         create_poem_image(stanza_data["stanza"], poem_title, image_path)
 
-        # Try to create video with random music
-        music_path = pick_random_music()
-        if music_path:
-            video_path = os.path.join(tmpdir, "poem.mp4")
-            create_video(image_path, music_path, video_path)
-            # Note: video posting via API requires Reels endpoint (more complex)
-            # For now we post the image; video support can be added later
-            print("Note: Posting as image. Video/Reels posting can be enabled later.")
+        # Pick random music (ready for future video support)
+        pick_random_music()
 
-        # 5. Upload image and post
+        # 5. Upload and post
         image_url = upload_image(image_path)
         post_to_instagram(image_url, stanza_data["caption"])
 
