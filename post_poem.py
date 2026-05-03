@@ -40,6 +40,7 @@ HASHTAGS = "#hindi #hindikavita #hindishayari #poetry #poem #indianpoetry #thoug
 def fetch_all_stanzas():
     print("Fetching stanzas from Google Sheet...")
     response = requests.get(SHEET_CSV_URL)
+    response.encoding = "utf-8"
     if response.status_code != 200:
         raise Exception(f"Could not fetch Google Sheet: {response.status_code}")
 
