@@ -145,7 +145,8 @@ def create_poem_image(stanza_text, poem_title, output_path):
     print("Creating poem image...")
 
     img = Image.new("RGB", (IMG_WIDTH, IMG_HEIGHT))
-    top_color, bottom_color, accent = draw_gradient_background(img)
+    top_color, bottom_color = draw_gradient_background(img)
+    accent = (100, 80, 60)
     draw = ImageDraw.Draw(img)
 
     # Dark text colors based on background
