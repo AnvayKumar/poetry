@@ -2,9 +2,8 @@ name: Post Poetry to Instagram
 
 on:
   schedule:
-    # Runs every 3 days at 9:00 AM UTC (2:00 PM IST)
     - cron: '0 9 */3 * *'
-  workflow_dispatch:  # Allows manual trigger from GitHub UI
+  workflow_dispatch:
 
 jobs:
   post-poem:
@@ -22,7 +21,8 @@ jobs:
       - name: Install dependencies
         run: |
           pip install -r requirements.txt
-          sudo apt-get install -y ffmpeg
+          sudo apt-get install -y ffmpeg fonts-noto-core fonts-noto-extra
+          fc-cache -f -v
 
       - name: Post poem to Instagram
         env:
