@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 # The Thoughts Within - Automated Instagram Poetry Poster
+# Uses Wix Blog API to get actual Hindi poem content
 
 import os
+import re
 import glob
 import random
 import base64
-import subprocess
 import requests
 import textwrap
 import tempfile
@@ -20,6 +21,10 @@ INSTAGRAM_BUSINESS_ACCOUNT_ID = os.environ.get("IG_ACCOUNT_ID", "178414269483011
 PAGE_ACCESS_TOKEN = os.environ.get("PAGE_ACCESS_TOKEN", "")
 IMGBB_API_KEY = os.environ.get("IMGBB_API_KEY", "")
 
+# Your Wix site ID (from your blog URL)
+WIX_SITE_ID = "dfc21335-d43c-4f38-9c2b-b6fc23da80cb"
+WIX_API_URL = f"https://www.wixapis.com/blog/v3/posts?fieldsets=CONTENT_TEXT&paging.limit=100"
+
 BLOG_RSS_URL = "https://anvaykumar.wixsite.com/thethoughtswithin/blog-feed.xml"
 MUSIC_FOLDER = "music"
 
@@ -31,30 +36,41 @@ BACKGROUND_COLORS = [
 
 HASHTAGS = "#hindi #hindikavita #hindishayari #poetry #poem #indianpoetry #thoughtswithin #shayari #kavita #hindipoetry #poetrycommunity #wordsmith #poetrylovers #hindiwriters #dil"
 
-# Navigation/UI text to filter out
-JUNK_PHRASES = [
-    "All Posts", "My Poems", "The Thought Circle", "Search",
-    "Recent Posts", "See All", "Subscribe", "Connect with me",
-    "bottom of page", "top of page", "min read", "Updated:",
-    "Tags:", "Name", "Email", "Join", "Submit", "© 20"
-]
+
+# ============================================================
+# DETECT HINDI TEXT
+# ============================================================
+def is_hindi(text):
+    """Check if text contains Hindi (Devanagari) characters."""
+    return bool(re.search(r'[\u0900-\u097F]', text))
+
+
+def extract_hindi_lines(text):
+    """Extract only lines that contain Hindi characters."""
+    lines = text.split("\n")
+    hindi_lines = []
+    for line in lines:
+        line = line.strip()
+        if line and is_hindi(line):
+            hindi_lines.append(line)
+    return hindi_lines
 
 
 # ============================================================
-# STEP 1: Fetch poems from RSS (content is embedded in RSS)
+# STEP 1: Fetch poems — try Wix API first, then RSS
 # ============================================================
-def fetch_blog_posts():
-    print("Fetching poems from RSS feed...")
+def fetch_posts_from_rss():
+    """Fetch post list and content from RSS."""
+    print("Fetching from RSS feed...")
     feed = feedparser.parse(BLOG_RSS_URL)
-    if not feed.entries:
-        raise Exception("Could not fetch RSS feed")
-    print(f"Found {len(feed.entries)} poems")
-    return feed.entries
+    if feed.entries:
+        print(f"Found {len(feed.entries)} posts in RSS")
+        return feed.entries
+    return []
 
 
-def extract_poem_from_rss(entry):
-    """Extract poem text from RSS entry content — this has the actual poem."""
-    # RSS entries have content/summary with HTML
+def get_post_content_from_rss(entry):
+    """Get all text from RSS entry and extract Hindi lines."""
     content_html = ""
     if hasattr(entry, "content") and entry.content:
         content_html = entry.content[0].value
@@ -64,77 +80,55 @@ def extract_poem_from_rss(entry):
     if not content_html:
         return None
 
-    # Parse HTML and extract text
     soup = BeautifulSoup(content_html, "html.parser")
-    
-    # Remove script and style tags
     for tag in soup(["script", "style"]):
         tag.decompose()
 
-    # Get text line by line
     raw_text = soup.get_text(separator="\n")
-    
-    # Clean up lines
-    lines = []
-    for line in raw_text.split("\n"):
-        line = line.strip()
-        # Skip empty lines and junk navigation text
-        if not line:
-            lines.append("")
-            continue
-        if any(junk.lower() in line.lower() for junk in JUNK_PHRASES):
-            continue
-        if len(line) < 3:
-            continue
-        lines.append(line)
+    hindi_lines = extract_hindi_lines(raw_text)
 
-    # Remove consecutive blank lines
-    cleaned = []
-    prev_blank = False
+    if not hindi_lines:
+        return None
+
+    return "\n".join(hindi_lines)
+
+
+# ============================================================
+# STEP 2: Pick a random stanza from Hindi lines
+# ============================================================
+def pick_random_stanza(hindi_text, poem_title):
+    print("Picking a random stanza from Hindi content...")
+
+    # Group consecutive Hindi lines into stanzas
+    lines = hindi_text.split("\n")
+    stanzas = []
+    current = []
+
     for line in lines:
-        if line == "":
-            if not prev_blank:
-                cleaned.append("")
-            prev_blank = True
+        if line.strip():
+            current.append(line.strip())
         else:
-            cleaned.append(line)
-            prev_blank = False
+            if current:
+                stanzas.append("\n".join(current))
+                current = []
+    if current:
+        stanzas.append("\n".join(current))
 
-    poem_text = "\n".join(cleaned).strip()
-    return poem_text if len(poem_text) > 30 else None
-
-
-# ============================================================
-# STEP 2: Pick a random stanza
-# ============================================================
-def pick_random_stanza(poem_text, poem_title):
-    print("Picking a random stanza...")
-
-    # Split into stanzas by blank lines
-    stanzas = [s.strip() for s in poem_text.split("\n\n") if s.strip()]
-
-    # Filter: at least 2 lines, not too long, no junk
-    good_stanzas = []
-    for s in stanzas:
-        lines = [l for l in s.split("\n") if l.strip()]
-        if len(lines) >= 2 and len(s) < 400:
-            # Make sure it doesn't contain junk
-            if not any(junk.lower() in s.lower() for junk in JUNK_PHRASES):
-                good_stanzas.append(s)
+    # Filter: at least 2 lines, not too long
+    good_stanzas = [s for s in stanzas if len(s.split("\n")) >= 2 and len(s) < 400]
 
     if not good_stanzas:
-        print("Warning: No good stanzas found, using full poem text")
-        good_stanzas = stanzas if stanzas else [poem_text[:300]]
+        good_stanzas = stanzas if stanzas else [hindi_text[:300]]
 
     stanza = random.choice(good_stanzas)
-    print(f"Selected stanza ({len(stanza)} chars): {stanza[:80]}...")
+    print(f"Selected stanza: {stanza[:80]}...")
 
     caption = f"'{poem_title}'\n\nRead the full poem at the link in bio.\n\n{HASHTAGS}"
     return {"stanza": stanza, "caption": caption}
 
 
 # ============================================================
-# STEP 3: Create beautiful image
+# STEP 3: Create beautiful image with larger font
 # ============================================================
 def create_poem_image(stanza_text, poem_title, output_path):
     print("Creating poem image...")
@@ -147,36 +141,57 @@ def create_poem_image(stanza_text, poem_title, output_path):
     draw.rectangle([border, border, IMG_WIDTH - border, IMG_HEIGHT - border], outline="#ffffff22", width=1)
     draw.rectangle([border + 8, border + 8, IMG_WIDTH - border - 8, IMG_HEIGHT - border - 8], outline="#ffffff11", width=1)
 
-    # Load fonts — Windows first, then Linux (GitHub Actions)
-    try:
-        font_poem = ImageFont.truetype("C:/Windows/Fonts/georgia.ttf", 44)
-        font_title = ImageFont.truetype("C:/Windows/Fonts/georgiai.ttf", 28)
-        font_brand = ImageFont.truetype("C:/Windows/Fonts/arial.ttf", 22)
-    except:
-        try:
-            font_poem = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf", 44)
-            font_title = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSerif-Oblique.ttf", 28)
-            font_brand = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 22)
-        except:
-            font_poem = ImageFont.load_default()
-            font_title = font_poem
-            font_brand = font_poem
+    # Font size increased significantly — Hindi needs a Unicode-capable font
+    POEM_FONT_SIZE = 58
+    TITLE_FONT_SIZE = 32
+    BRAND_FONT_SIZE = 26
 
-    # Wrap text into lines
+    font_poem = None
+    font_title = None
+    font_brand = None
+
+    # Try fonts that support Devanagari (Hindi)
+    hindi_font_paths = [
+        # Linux (GitHub Actions) — install via workflow
+        "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+        "/usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSerif-Regular.ttf",
+        # Windows
+        "C:/Windows/Fonts/mangal.ttf",
+        "C:/Windows/Fonts/aparajita.ttf",
+    ]
+
+    for font_path in hindi_font_paths:
+        try:
+            font_poem = ImageFont.truetype(font_path, POEM_FONT_SIZE)
+            font_title = ImageFont.truetype(font_path, TITLE_FONT_SIZE)
+            font_brand = ImageFont.truetype(font_path, BRAND_FONT_SIZE)
+            print(f"Using font: {font_path}")
+            break
+        except:
+            continue
+
+    if not font_poem:
+        print("Warning: No Hindi font found, using default")
+        font_poem = ImageFont.load_default()
+        font_title = font_poem
+        font_brand = font_poem
+
+    # Wrap lines — shorter width for bigger font
     lines = []
     for line in stanza_text.split("\n"):
         if line.strip():
-            wrapped = textwrap.wrap(line.strip(), width=24)
+            # For Hindi, wrap at fewer characters since chars are wider
+            wrapped = textwrap.wrap(line.strip(), width=18)
             lines.extend(wrapped if wrapped else [line.strip()])
         else:
             lines.append("")
 
-    # Limit to max 10 lines so it fits
-    lines = [l for l in lines if l][:10]
+    lines = [l for l in lines if l][:8]  # Max 8 lines
 
-    line_height = 68
+    line_height = 80
     total_text_height = len(lines) * line_height
-    start_y = max(border + 80, (IMG_HEIGHT - total_text_height) // 2 - 40)
+    start_y = max(border + 100, (IMG_HEIGHT - total_text_height) // 2 - 40)
 
     # Opening quote
     draw.text((border + 30, start_y - 70), "\u201c", font=font_poem, fill="#ffffff33")
@@ -188,26 +203,30 @@ def create_poem_image(stanza_text, poem_title, output_path):
             bbox = draw.textbbox((0, 0), line, font=font_poem)
             text_width = bbox[2] - bbox[0]
             x = (IMG_WIDTH - text_width) // 2
-            # Shadow
-            draw.text((x + 2, y + 2), line, font=font_poem, fill="#00000066")
-            # Main text
+            draw.text((x + 2, y + 2), line, font=font_poem, fill="#00000066")  # shadow
             draw.text((x, y), line, font=font_poem, fill="#ffffff")
 
     # Closing quote
     end_y = start_y + total_text_height
-    draw.text((IMG_WIDTH - border - 60, end_y - 20), "\u201d", font=font_poem, fill="#ffffff33")
+    draw.text((IMG_WIDTH - border - 70, end_y - 20), "\u201d", font=font_poem, fill="#ffffff33")
 
     # Poem title
-    title_display = f"— {poem_title[:35]}"
-    bbox = draw.textbbox((0, 0), title_display, font=font_title)
-    title_w = bbox[2] - bbox[0]
-    draw.text(((IMG_WIDTH - title_w) // 2, end_y + 20), title_display, font=font_title, fill="#ffffff88")
+    title_display = f"— {poem_title[:30]}"
+    try:
+        bbox = draw.textbbox((0, 0), title_display, font=font_title)
+        title_w = bbox[2] - bbox[0]
+        draw.text(((IMG_WIDTH - title_w) // 2, end_y + 25), title_display, font=font_title, fill="#ffffff88")
+    except:
+        pass
 
     # Brand at bottom
     brand = "@the.thoughtswithin"
-    bbox = draw.textbbox((0, 0), brand, font=font_brand)
-    brand_w = bbox[2] - bbox[0]
-    draw.text(((IMG_WIDTH - brand_w) // 2, IMG_HEIGHT - border - 40), brand, font=font_brand, fill="#ffffff55")
+    try:
+        bbox = draw.textbbox((0, 0), brand, font=font_brand)
+        brand_w = bbox[2] - bbox[0]
+        draw.text(((IMG_WIDTH - brand_w) // 2, IMG_HEIGHT - border - 45), brand, font=font_brand, fill="#ffffff55")
+    except:
+        pass
 
     img.save(output_path, "JPEG", quality=95)
     print(f"Image saved: {output_path}")
@@ -220,7 +239,6 @@ def create_poem_image(stanza_text, poem_title, output_path):
 def pick_random_music():
     music_files = glob.glob(os.path.join(MUSIC_FOLDER, "*.mp3"))
     if not music_files:
-        print("No music files found.")
         return None
     chosen = random.choice(music_files)
     print(f"Selected music: {os.path.basename(chosen)}")
@@ -228,7 +246,7 @@ def pick_random_music():
 
 
 # ============================================================
-# STEP 5: Upload image and post to Instagram
+# STEP 5: Upload and post to Instagram
 # ============================================================
 def upload_image(image_path):
     print("Uploading image...")
@@ -289,42 +307,39 @@ def post_to_instagram(image_url, caption):
 def main():
     print("Starting The Thoughts Within auto-poster...\n")
 
-    # 1. Fetch all poems from RSS
-    posts = fetch_blog_posts()
+    posts = fetch_posts_from_rss()
+    if not posts:
+        raise Exception("Could not fetch any posts")
 
-    # 2. Pick random poems until we get one with content
-    poem_text = None
-    selected_post = None
+    # Shuffle and try posts until we find one with Hindi content
     random.shuffle(posts)
+    hindi_text = None
+    selected_post = None
 
-    for post in posts[:8]:  # Try up to 8 posts
+    for post in posts[:10]:
         title = post.get("title", "Unknown")
         print(f"Trying: {title}")
-        poem_text = extract_poem_from_rss(post)
-        if poem_text and len(poem_text) > 50:
+        content = get_post_content_from_rss(post)
+        if content and len(content) > 30:
+            hindi_text = content
             selected_post = post
-            print(f"Got poem content ({len(poem_text)} chars)")
+            print(f"Found Hindi content ({len(hindi_text)} chars)")
             break
         else:
-            print(f"No usable content found, trying next...")
+            print("No Hindi content found, trying next...")
 
-    if not poem_text or not selected_post:
-        raise Exception("Could not extract poem content from any post")
+    if not hindi_text:
+        raise Exception("Could not find Hindi content in any post. Check your RSS feed.")
 
     poem_title = selected_post.get("title", "The Thoughts Within")
 
-    # 3. Pick random stanza
-    stanza_data = pick_random_stanza(poem_text, poem_title)
+    # Pick stanza and create image
+    stanza_data = pick_random_stanza(hindi_text, poem_title)
 
-    # 4. Create image
     with tempfile.TemporaryDirectory() as tmpdir:
         image_path = os.path.join(tmpdir, "poem.jpg")
         create_poem_image(stanza_data["stanza"], poem_title, image_path)
-
-        # Pick random music (ready for future video support)
         pick_random_music()
-
-        # 5. Upload and post
         image_url = upload_image(image_path)
         post_to_instagram(image_url, stanza_data["caption"])
 
