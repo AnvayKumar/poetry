@@ -1,0 +1,6 @@
+anthropic
+requests
+feedparser
+Pillow
+beautifulsoup4
+python-dotenv
