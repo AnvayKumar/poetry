@@ -114,24 +114,60 @@ def find_hindi_font():
 # ============================================================
 # STEP 4: Create beautiful image
 # ============================================================
+
+# Beautiful light gradient backgrounds (light bg, dark text)
+GRADIENTS = [
+    # (top_color, bottom_color, accent_color)
+    ((255, 245, 235), (255, 220, 190), (180, 100, 50)),   # Warm peach
+    ((235, 245, 255), (190, 220, 255), (50, 100, 180)),   # Soft blue
+    ((240, 255, 240), (190, 240, 210), (40, 140, 80)),    # Mint green
+    ((250, 235, 255), (220, 190, 255), (120, 50, 180)),   # Lavender
+    ((255, 250, 230), (255, 235, 180), (160, 120, 20)),   # Golden
+    ((235, 250, 255), (180, 230, 250), (30, 120, 160)),   # Sky blue
+    ((255, 235, 240), (255, 190, 210), (160, 40, 80)),    # Rose
+]
+
+def draw_gradient_background(img):
+    """Draw a smooth gradient background."""
+    top_color, bottom_color, _ = random.choice(GRADIENTS)
+    pixels = img.load()
+    for y in range(IMG_HEIGHT):
+        t = y / IMG_HEIGHT
+        r = int(top_color[0] + (bottom_color[0] - top_color[0]) * t)
+        g = int(top_color[1] + (bottom_color[1] - top_color[1]) * t)
+        b = int(top_color[2] + (bottom_color[2] - top_color[2]) * t)
+        for x in range(IMG_WIDTH):
+            pixels[x, y] = (r, g, b)
+    return top_color, bottom_color
+
+
 def create_poem_image(stanza_text, poem_title, output_path):
     print("Creating poem image...")
 
-    bg_color = random.choice(BACKGROUND_COLORS)
-    img = Image.new("RGB", (IMG_WIDTH, IMG_HEIGHT), color=bg_color)
+    img = Image.new("RGB", (IMG_WIDTH, IMG_HEIGHT))
+    top_color, bottom_color, accent = draw_gradient_background(img)
     draw = ImageDraw.Draw(img)
 
-    border = 50
-    draw.rectangle([border, border, IMG_WIDTH - border, IMG_HEIGHT - border], outline="#ffffff22", width=1)
-    draw.rectangle([border + 8, border + 8, IMG_WIDTH - border - 8, IMG_HEIGHT - border - 8], outline="#ffffff11", width=1)
+    # Dark text colors based on background
+    TEXT_DARK = (40, 30, 20)
+    TEXT_MED = (80, 60, 50)
+    TEXT_LIGHT = (130, 110, 100)
+    DIVIDER_COLOR = (180, 160, 140, 100)
+
+    border = 55
+
+    # Subtle border rectangle
+    draw.rectangle([border, border, IMG_WIDTH - border, IMG_HEIGHT - border],
+                   outline=(*TEXT_LIGHT, 80), width=1)
 
     hindi_font_path = find_hindi_font()
 
-    # Also find a Latin font for the brand name (to avoid boxes)
+    # Find modern Latin font (Lato preferred for modern look)
     latin_font_paths = [
+        "/usr/share/fonts/truetype/lato/Lato-Regular.ttf",
+        "/usr/share/fonts/truetype/lato/Lato-Light.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "/usr/share/fonts/truetype/lato/Lato-Regular.ttf",
         "C:/Windows/Fonts/arial.ttf",
     ]
     latin_font_path = None
@@ -142,50 +178,52 @@ def create_poem_image(stanza_text, poem_title, output_path):
             break
 
     if not hindi_font_path:
-        print("Warning: No Hindi font found")
         hindi_font_path = latin_font_path
 
     # Layout zones
-    TITLE_ZONE_TOP = border + 20
-    TITLE_ZONE_BOTTOM = border + 120
-    BRAND_ZONE_TOP = IMG_HEIGHT - border - 90
-    STANZA_ZONE_TOP = TITLE_ZONE_BOTTOM + 20
-    STANZA_ZONE_BOTTOM = BRAND_ZONE_TOP - 20
+    TITLE_ZONE_TOP = border + 25
+    TITLE_ZONE_BOTTOM = border + 130
+    BRAND_ZONE_TOP = IMG_HEIGHT - border - 95
+    STANZA_ZONE_TOP = TITLE_ZONE_BOTTOM + 25
+    STANZA_ZONE_BOTTOM = BRAND_ZONE_TOP - 25
     STANZA_ZONE_HEIGHT = STANZA_ZONE_BOTTOM - STANZA_ZONE_TOP
 
     # Split stanza into lines
     raw_lines = [l.strip() for l in stanza_text.split("\n") if l.strip()]
 
-    # Auto-size font to fit all lines in the stanza zone
-    def get_font_size(lines, zone_height, max_size=52, min_size=28):
+    # Auto-size font to fit all lines in stanza zone
+    def get_font_size(lines, zone_height, max_size=52, min_size=26):
         for size in range(max_size, min_size - 1, -2):
             font = ImageFont.truetype(hindi_font_path, size)
-            line_h = int(size * 1.5)
+            line_h = int(size * 1.6)
             total_h = len(lines) * line_h
             if total_h <= zone_height:
                 return size, font, line_h
         font = ImageFont.truetype(hindi_font_path, min_size)
-        return min_size, font, int(min_size * 1.5)
+        return min_size, font, int(min_size * 1.6)
 
     poem_size, font_poem, line_height = get_font_size(raw_lines, STANZA_ZONE_HEIGHT)
     print(f"Auto font size: {poem_size}px for {len(raw_lines)} lines")
 
-    font_title = ImageFont.truetype(hindi_font_path, 36)
-    font_brand_latin = ImageFont.truetype(latin_font_path, 26) if latin_font_path else font_poem
+    font_title = ImageFont.truetype(hindi_font_path, 38)
+    font_brand_hindi = ImageFont.truetype(hindi_font_path, 28)
+    font_brand_latin = ImageFont.truetype(latin_font_path, 28) if latin_font_path else font_brand_hindi
 
-    # Draw title - centre aligned at top
+    # --- TITLE ---
     title_bbox = draw.textbbox((0, 0), poem_title, font=font_title)
     title_w = title_bbox[2] - title_bbox[0]
+    title_h = title_bbox[3] - title_bbox[1]
     title_x = (IMG_WIDTH - title_w) // 2
-    title_y = TITLE_ZONE_TOP + (TITLE_ZONE_BOTTOM - TITLE_ZONE_TOP - (title_bbox[3] - title_bbox[1])) // 2
-    # Shadow + text
-    draw.text((title_x + 1, title_y + 1), poem_title, font=font_title, fill="#00000055")
-    draw.text((title_x, title_y), poem_title, font=font_title, fill="#ffffffcc")
+    title_y = TITLE_ZONE_TOP + (TITLE_ZONE_BOTTOM - TITLE_ZONE_TOP - title_h) // 2
+    draw.text((title_x, title_y), poem_title, font=font_title, fill=TEXT_DARK)
 
-    # Divider line under title
-    draw.line([(border + 60, TITLE_ZONE_BOTTOM), (IMG_WIDTH - border - 60, TITLE_ZONE_BOTTOM)], fill="#ffffff22", width=1)
+    # Elegant thin divider under title
+    div_y = TITLE_ZONE_BOTTOM + 5
+    div_cx = IMG_WIDTH // 2
+    draw.line([(div_cx - 180, div_y), (div_cx + 180, div_y)], fill=TEXT_LIGHT, width=1)
+    draw.ellipse([(div_cx - 4, div_y - 3), (div_cx + 4, div_y + 3)], fill=TEXT_MED)
 
-    # Draw stanza - vertically centred in stanza zone
+    # --- STANZA ---
     total_stanza_height = len(raw_lines) * line_height
     start_y = STANZA_ZONE_TOP + (STANZA_ZONE_HEIGHT - total_stanza_height) // 2
 
@@ -194,19 +232,28 @@ def create_poem_image(stanza_text, poem_title, output_path):
         bbox = draw.textbbox((0, 0), line, font=font_poem)
         text_width = bbox[2] - bbox[0]
         x = (IMG_WIDTH - text_width) // 2
-        draw.text((x + 2, y + 2), line, font=font_poem, fill="#00000066")
-        draw.text((x, y), line, font=font_poem, fill="#ffffff")
+        draw.text((x, y), line, font=font_poem, fill=TEXT_DARK)
 
-    # Divider line above brand
-    draw.line([(border + 60, BRAND_ZONE_TOP), (IMG_WIDTH - border - 60, BRAND_ZONE_TOP)], fill="#ffffff22", width=1)
+    # Elegant thin divider above brand
+    div2_y = BRAND_ZONE_TOP - 5
+    draw.line([(div_cx - 180, div2_y), (div_cx + 180, div2_y)], fill=TEXT_LIGHT, width=1)
+    draw.ellipse([(div_cx - 4, div2_y - 3), (div_cx + 4, div2_y + 3)], fill=TEXT_MED)
 
-    # Draw brand - "द Thoughts Within" using Latin font for Latin chars
-    brand = "The Thoughts Within"
-    brand_bbox = draw.textbbox((0, 0), brand, font=font_brand_latin)
-    brand_w = brand_bbox[2] - brand_bbox[0]
-    brand_x = (IMG_WIDTH - brand_w) // 2
-    brand_y = BRAND_ZONE_TOP + 20
-    draw.text((brand_x, brand_y), brand, font=font_brand_latin, fill="#ffffff66")
+    # --- BRAND: "द Thoughts Within" ---
+    # "द" in Hindi font + " Thoughts Within" in Latin font, joined together
+    hindi_part = "द "
+    latin_part = "Thoughts Within"
+
+    hindi_bbox = draw.textbbox((0, 0), hindi_part, font=font_brand_hindi)
+    latin_bbox = draw.textbbox((0, 0), latin_part, font=font_brand_latin)
+    hindi_w = hindi_bbox[2] - hindi_bbox[0]
+    latin_w = latin_bbox[2] - latin_bbox[0]
+    total_brand_w = hindi_w + latin_w
+    brand_x = (IMG_WIDTH - total_brand_w) // 2
+    brand_y = BRAND_ZONE_TOP + 18
+
+    draw.text((brand_x, brand_y), hindi_part, font=font_brand_hindi, fill=TEXT_MED)
+    draw.text((brand_x + hindi_w, brand_y), latin_part, font=font_brand_latin, fill=TEXT_MED)
 
     img.save(output_path, "JPEG", quality=95)
     print(f"Image saved: {output_path}")
