@@ -121,41 +121,75 @@ def create_poem_image(stanza_text, poem_title, output_path):
     img = Image.new("RGB", (IMG_WIDTH, IMG_HEIGHT), color=bg_color)
     draw = ImageDraw.Draw(img)
 
-    border = 40
+    border = 50
     draw.rectangle([border, border, IMG_WIDTH - border, IMG_HEIGHT - border], outline="#ffffff22", width=1)
     draw.rectangle([border + 8, border + 8, IMG_WIDTH - border - 8, IMG_HEIGHT - border - 8], outline="#ffffff11", width=1)
 
-    POEM_FONT_SIZE = 58
-    TITLE_FONT_SIZE = 30
-    BRAND_FONT_SIZE = 24
+    hindi_font_path = find_hindi_font()
 
-    font_path = find_hindi_font()
-    if font_path:
-        font_poem = ImageFont.truetype(font_path, POEM_FONT_SIZE)
-        font_title = ImageFont.truetype(font_path, TITLE_FONT_SIZE)
-        font_brand = ImageFont.truetype(font_path, BRAND_FONT_SIZE)
-    else:
-        font_poem = font_title = font_brand = ImageFont.load_default()
-        print("Warning: Using default font — Hindi may not render correctly")
+    # Also find a Latin font for the brand name (to avoid boxes)
+    latin_font_paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+        "/usr/share/fonts/truetype/lato/Lato-Regular.ttf",
+        "C:/Windows/Fonts/arial.ttf",
+    ]
+    latin_font_path = None
+    for p in latin_font_paths:
+        if os.path.exists(p):
+            latin_font_path = p
+            print(f"Latin font: {p}")
+            break
+
+    if not hindi_font_path:
+        print("Warning: No Hindi font found")
+        hindi_font_path = latin_font_path
+
+    # Layout zones
+    TITLE_ZONE_TOP = border + 20
+    TITLE_ZONE_BOTTOM = border + 120
+    BRAND_ZONE_TOP = IMG_HEIGHT - border - 90
+    STANZA_ZONE_TOP = TITLE_ZONE_BOTTOM + 20
+    STANZA_ZONE_BOTTOM = BRAND_ZONE_TOP - 20
+    STANZA_ZONE_HEIGHT = STANZA_ZONE_BOTTOM - STANZA_ZONE_TOP
 
     # Split stanza into lines
     raw_lines = [l.strip() for l in stanza_text.split("\n") if l.strip()]
-    lines = []
-    for line in raw_lines:
-        if len(line) > 20:
-            wrapped = textwrap.wrap(line, width=20)
-            lines.extend(wrapped)
-        else:
-            lines.append(line)
-    lines = lines[:10]
 
-    line_height = 80
-    total_text_height = len(lines) * line_height
-    start_y = max(border + 100, (IMG_HEIGHT - total_text_height) // 2 - 50)
+    # Auto-size font to fit all lines in the stanza zone
+    def get_font_size(lines, zone_height, max_size=52, min_size=28):
+        for size in range(max_size, min_size - 1, -2):
+            font = ImageFont.truetype(hindi_font_path, size)
+            line_h = int(size * 1.5)
+            total_h = len(lines) * line_h
+            if total_h <= zone_height:
+                return size, font, line_h
+        font = ImageFont.truetype(hindi_font_path, min_size)
+        return min_size, font, int(min_size * 1.5)
 
-    draw.text((border + 30, start_y - 80), "\u201c", font=font_poem, fill="#ffffff33")
+    poem_size, font_poem, line_height = get_font_size(raw_lines, STANZA_ZONE_HEIGHT)
+    print(f"Auto font size: {poem_size}px for {len(raw_lines)} lines")
 
-    for i, line in enumerate(lines):
+    font_title = ImageFont.truetype(hindi_font_path, 36)
+    font_brand_latin = ImageFont.truetype(latin_font_path, 26) if latin_font_path else font_poem
+
+    # Draw title - centre aligned at top
+    title_bbox = draw.textbbox((0, 0), poem_title, font=font_title)
+    title_w = title_bbox[2] - title_bbox[0]
+    title_x = (IMG_WIDTH - title_w) // 2
+    title_y = TITLE_ZONE_TOP + (TITLE_ZONE_BOTTOM - TITLE_ZONE_TOP - (title_bbox[3] - title_bbox[1])) // 2
+    # Shadow + text
+    draw.text((title_x + 1, title_y + 1), poem_title, font=font_title, fill="#00000055")
+    draw.text((title_x, title_y), poem_title, font=font_title, fill="#ffffffcc")
+
+    # Divider line under title
+    draw.line([(border + 60, TITLE_ZONE_BOTTOM), (IMG_WIDTH - border - 60, TITLE_ZONE_BOTTOM)], fill="#ffffff22", width=1)
+
+    # Draw stanza - vertically centred in stanza zone
+    total_stanza_height = len(raw_lines) * line_height
+    start_y = STANZA_ZONE_TOP + (STANZA_ZONE_HEIGHT - total_stanza_height) // 2
+
+    for i, line in enumerate(raw_lines):
         y = start_y + i * line_height
         bbox = draw.textbbox((0, 0), line, font=font_poem)
         text_width = bbox[2] - bbox[0]
@@ -163,16 +197,16 @@ def create_poem_image(stanza_text, poem_title, output_path):
         draw.text((x + 2, y + 2), line, font=font_poem, fill="#00000066")
         draw.text((x, y), line, font=font_poem, fill="#ffffff")
 
-    end_y = start_y + total_text_height
-    draw.text((IMG_WIDTH - border - 70, end_y - 20), "\u201d", font=font_poem, fill="#ffffff33")
+    # Divider line above brand
+    draw.line([(border + 60, BRAND_ZONE_TOP), (IMG_WIDTH - border - 60, BRAND_ZONE_TOP)], fill="#ffffff22", width=1)
 
-    title_display = f"— {poem_title[:28]}"
-    bbox = draw.textbbox((0, 0), title_display, font=font_title)
-    draw.text(((IMG_WIDTH - (bbox[2] - bbox[0])) // 2, end_y + 28), title_display, font=font_title, fill="#ffffff88")
-
-    brand = "@the.thoughtswithin"
-    bbox = draw.textbbox((0, 0), brand, font=font_brand)
-    draw.text(((IMG_WIDTH - (bbox[2] - bbox[0])) // 2, IMG_HEIGHT - border - 45), brand, font=font_brand, fill="#ffffff55")
+    # Draw brand - "द Thoughts Within" using Latin font for Latin chars
+    brand = "The Thoughts Within"
+    brand_bbox = draw.textbbox((0, 0), brand, font=font_brand_latin)
+    brand_w = brand_bbox[2] - brand_bbox[0]
+    brand_x = (IMG_WIDTH - brand_w) // 2
+    brand_y = BRAND_ZONE_TOP + 20
+    draw.text((brand_x, brand_y), brand, font=font_brand_latin, fill="#ffffff66")
 
     img.save(output_path, "JPEG", quality=95)
     print(f"Image saved: {output_path}")
