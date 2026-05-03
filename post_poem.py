@@ -100,27 +100,37 @@ def create_poem_image(stanza_text, poem_title, output_path):
 
     font_poem = font_title = font_brand = None
 
-    hindi_font_paths = [
-        "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
-        "/usr/share/fonts/truetype/lohit-devanagari/Lohit-Devanagari.ttf",
-        "/usr/share/fonts/truetype/noto/NotoSerif-Regular.ttf",
-        "C:/Windows/Fonts/mangal.ttf",
-        "C:/Windows/Fonts/aparajita.ttf",
-    ]
+    def find_hindi_font():
+        import subprocess, glob as g
+        try:
+            result = subprocess.run(["fc-list", ":lang=hi", "--format=%{file}\n"], capture_output=True, text=True)
+            paths = [p.strip() for p in result.stdout.strip().split("
+") if p.strip()]
+            if paths:
+                print(f"fc-list found: {paths[0]}")
+                return paths[0]
+        except Exception as e:
+            print(f"fc-list failed: {e}")
+        noto_hits = g.glob("/usr/share/fonts/**/Noto*Devanagari*.ttf", recursive=True)
+        fallback = ["C:/Windows/Fonts/mangal.ttf", "C:/Windows/Fonts/aparajita.ttf"]
+        for p in noto_hits + fallback:
+            if os.path.exists(p):
+                print(f"Found font: {p}")
+                return p
+        return None
 
-    for font_path in hindi_font_paths:
+    font_path = find_hindi_font()
+    if font_path:
         try:
             font_poem = ImageFont.truetype(font_path, POEM_FONT_SIZE)
             font_title = ImageFont.truetype(font_path, TITLE_FONT_SIZE)
             font_brand = ImageFont.truetype(font_path, BRAND_FONT_SIZE)
             print(f"Using font: {font_path}")
-            break
-        except:
-            continue
-
+        except Exception as e:
+            print(f"Font load error: {e}")
     if not font_poem:
         font_poem = font_title = font_brand = ImageFont.load_default()
-        print("Warning: Using default font")
+        print("Warning: Using default font — Hindi may render as boxes")
 
     # Split stanza into lines
     raw_lines = [l.strip() for l in stanza_text.split("\n") if l.strip()]
