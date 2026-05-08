@@ -67,7 +67,7 @@ def pick_random_stanza(all_stanzas):
     print("Picking a random stanza...")
     title, stanza = random.choice(all_stanzas)
     print(f"Selected from '{title}': {stanza[:60]}...")
-    caption = f"'{title}'\n\nRead the full poem at the link in bio.\n\n{HASHTAGS}"
+    caption = f"'{title}'\n\nRead the full poem at:\nhttps://anvaykumar.wixsite.com/thethoughtswithin/blog\n\n{HASHTAGS}"
     return {"title": title, "stanza": stanza, "caption": caption}
 
 
@@ -115,30 +115,35 @@ def find_hindi_font():
 # STEP 4: Create beautiful image
 # ============================================================
 
-# Beautiful light gradient backgrounds (light bg, dark text)
-GRADIENTS = [
-    # (top_color, bottom_color, accent_color)
-    ((255, 245, 235), (255, 220, 190), (180, 100, 50)),   # Warm peach
-    ((235, 245, 255), (190, 220, 255), (50, 100, 180)),   # Soft blue
-    ((240, 255, 240), (190, 240, 210), (40, 140, 80)),    # Mint green
-    ((250, 235, 255), (220, 190, 255), (120, 50, 180)),   # Lavender
-    ((255, 250, 230), (255, 235, 180), (160, 120, 20)),   # Golden
-    ((235, 250, 255), (180, 230, 250), (30, 120, 160)),   # Sky blue
-    ((255, 235, 240), (255, 190, 210), (160, 40, 80)),    # Rose
+# Multi-stop gradient themes (3-4 color stops each)
+GRADIENT_THEMES = [
+    # (color_stop_1, color_stop_2, color_stop_3, color_stop_4)
+    ((255,245,235), (255,225,200), (255,200,170), (240,180,150)),  # Warm peach sunset
+    ((235,245,255), (200,225,255), (170,205,255), (150,185,240)),  # Ocean blue
+    ((240,255,245), (200,245,220), (170,230,200), (150,210,180)),  # Mint forest
+    ((250,238,255), (230,205,255), (210,175,255), (190,155,240)),  # Purple dream
+    ((255,252,230), (255,240,185), (255,225,150), (240,205,130)),  # Golden hour
+    ((235,252,255), (190,238,255), (160,220,250), (140,200,235)),  # Sky
+    ((255,235,242), (255,205,220), (255,180,205), (240,160,185)),  # Rose petal
+    ((242,255,235), (215,255,200), (190,245,175), (170,225,155)),  # Spring green
 ]
 
 def draw_gradient_background(img):
-    """Draw a smooth gradient background."""
-    top_color, bottom_color, _ = random.choice(GRADIENTS)
+    """Draw a smooth 4-stop gradient background."""
+    stops = random.choice(GRADIENT_THEMES)
     pixels = img.load()
+    n = len(stops) - 1
     for y in range(IMG_HEIGHT):
-        t = y / IMG_HEIGHT
-        r = int(top_color[0] + (bottom_color[0] - top_color[0]) * t)
-        g = int(top_color[1] + (bottom_color[1] - top_color[1]) * t)
-        b = int(top_color[2] + (bottom_color[2] - top_color[2]) * t)
+        t = y / IMG_HEIGHT * n
+        idx = min(int(t), n - 1)
+        local_t = t - idx
+        c1, c2 = stops[idx], stops[idx + 1]
+        r = int(c1[0] + (c2[0] - c1[0]) * local_t)
+        g = int(c1[1] + (c2[1] - c1[1]) * local_t)
+        b = int(c1[2] + (c2[2] - c1[2]) * local_t)
         for x in range(IMG_WIDTH):
             pixels[x, y] = (r, g, b)
-    return top_color, bottom_color
+    return stops[0], stops[-1]
 
 
 def create_poem_image(stanza_text, poem_title, output_path):
@@ -193,17 +198,31 @@ def create_poem_image(stanza_text, poem_title, output_path):
     raw_lines = [l.strip() for l in stanza_text.split("\n") if l.strip()]
 
     # Auto-size font to fit all lines in stanza zone
-    def get_font_size(lines, zone_height, max_size=52, min_size=26):
+    def get_font_size(lines, zone_height, font_path=None, max_size=52, min_size=26):
+        fp = font_path or hindi_font_path
         for size in range(max_size, min_size - 1, -2):
-            font = ImageFont.truetype(hindi_font_path, size)
+            font = ImageFont.truetype(fp, size)
             line_h = int(size * 1.6)
             total_h = len(lines) * line_h
             if total_h <= zone_height:
                 return size, font, line_h
-        font = ImageFont.truetype(hindi_font_path, min_size)
+        font = ImageFont.truetype(fp, min_size)
         return min_size, font, int(min_size * 1.6)
 
-    poem_size, font_poem, line_height = get_font_size(raw_lines, STANZA_ZONE_HEIGHT)
+    # For stanza: use a lighter/thinner variant of the Hindi font if available
+    stanza_font_paths = [
+        "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Light.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSerifDevanagari-Regular.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+    ]
+    stanza_font_path = hindi_font_path  # fallback
+    for sfp in stanza_font_paths:
+        if os.path.exists(sfp):
+            stanza_font_path = sfp
+            print(f"Stanza font: {sfp}")
+            break
+
+    poem_size, font_poem, line_height = get_font_size(raw_lines, STANZA_ZONE_HEIGHT, stanza_font_path)
     print(f"Auto font size: {poem_size}px for {len(raw_lines)} lines")
 
     font_title = ImageFont.truetype(hindi_font_path, 38)
