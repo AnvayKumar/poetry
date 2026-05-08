@@ -56,10 +56,6 @@ COPY_PAIRS = [
         "I began writing to find calm in the noise.\n\nMaybe you'll find yours here too. 🔗 Link in bio"
     ),
     (
-        "कुछ एहसास\nसिर्फ कविता समझती है।",
-        "Some feelings are too big for words — and just right for poetry.\n\nRead more at the link in bio. ✍️"
-    ),
-    (
         "रुकना भी\nज़रूरी होता है।",
         "In a world moving too fast, this is your pause.\n\nद Thoughts Within — link in bio 🌿"
     ),
@@ -76,10 +72,6 @@ COPY_PAIRS = [
         "These words carry feelings you might recognize too — calm, hope, fear, meaning.\n\nLink in bio 🌸"
     ),
     (
-        "ये जगह\nसबकी है।",
-        "This space belongs to all of us who find comfort in words.\n\nFollow for more ✨"
-    ),
-    (
         "सवालों के साथ\nबैठना सीखा।",
         "I learned it's okay to be uncertain. Poetry taught me that.\n\nRead more — link in bio 🌿"
     ),
@@ -88,9 +80,69 @@ COPY_PAIRS = [
         "Simple moments can hold meaning — if you pause long enough to notice.\n\nद Thoughts Within 📖"
     ),
     (
-        "जो तुम सोचते हो,\nवो हम लिखते हैं।",
+        "जो तुम सोचते हो,\nमैंने लिखा है।",
         "Started as scattered thoughts scribbled at unexpected times.\n\nNow shared for the connection that comes from noticing together. 🔗 Link in bio"
     ),
+    (
+        "कुछ बातें\nसमझनी नहीं,\nमहसूस करनी होती हैं।",
+        "Not every feeling asks to be explained.\n\nSome just ask you to pause. 🌙"
+    ),
+    (
+        "भीतर का शोर\nकभी-कभी\nशब्द बन जाता है।",
+        "For all the thoughts that never found a voice.\n\nMaybe they'll find one here. ✍️"
+    ),
+        
+    (
+        "हर कोई\nकुछ छुपाकर जी रहा है।",
+        "Poetry has a way of finding the hidden parts of us.\n\nLink in bio 📖"
+    ),
+        
+    (
+        "जो रह गया था,\nवो यहीं लिखा है।",
+        "Some feelings stay unfinished.\n\nUntil they become poetry. 🌿"
+    ),
+        
+    (
+        "ख़ामोशी भी\nबहुत कुछ कहती है।",
+        "Not all conversations need sound.\n\nSome only need honesty. ✨"
+    ),
+        
+    (
+        "कभी खुद को\nभी पढ़ लिया करो।",
+        "The deepest words are often the ones we avoid.\n\nद Thoughts Within 🔗"
+    ),
+        
+    (
+        "थोड़ा ठहरना\nभी ज़रूरी है।",
+        "A quiet corner for heavy hearts and thoughtful minds.\n\nLink in bio 🌙"
+    ),
+        
+    (
+        "कुछ जज़्बात\nनाम नहीं माँगते।",
+        "You don't always need to understand a feeling to connect with it.\n\nFollow for more 🖊️"
+    ),
+        
+   
+    (
+        "भीतर जो चल रहा है,\nशायद वही कविता है।",
+        "Words for the things we carry quietly.\n\nद Thoughts Within 📖"
+    ),
+        
+    (
+        "जो कह नहीं पाए,\nवो लिख दिया।",
+        "Sometimes writing is just another form of surviving.\n\nLink in bio 🌿"
+    ),
+        
+    (
+        "हर इंसान के भीतर\nएक अधूरी कहानी।",
+        "Maybe that's why poetry feels personal.\n\nBecause it is. ✨"
+    ),
+        
+    (
+        "कुछ एहसास\nवक़्त से भी पुराने।",
+        "Poetry holds the feelings time couldn't erase.\n\nRead more 🔗"
+    ),
+        
 ]
 
 
