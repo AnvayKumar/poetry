@@ -198,16 +198,16 @@ def create_poem_image(stanza_text, poem_title, output_path):
     raw_lines = [l.strip() for l in stanza_text.split("\n") if l.strip()]
 
     # Auto-size font to fit all lines in stanza zone
-    def get_font_size(lines, zone_height, font_path=None, max_size=52, min_size=26):
+    def get_font_size(lines, zone_height, font_path=None, max_size=44, min_size=24):
         fp = font_path or hindi_font_path
         for size in range(max_size, min_size - 1, -2):
             font = ImageFont.truetype(fp, size)
-            line_h = int(size * 1.6)
+            line_h = int(size * 2.0)  # More breathing room between lines
             total_h = len(lines) * line_h
             if total_h <= zone_height:
                 return size, font, line_h
         font = ImageFont.truetype(fp, min_size)
-        return min_size, font, int(min_size * 1.6)
+        return min_size, font, int(min_size * 2.0)
 
     # For stanza: use a lighter/thinner variant of the Hindi font if available
     stanza_font_paths = [
