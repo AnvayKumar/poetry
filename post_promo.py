@@ -98,22 +98,34 @@ COPY_PAIRS = [
 # FETCH PHOTO FROM UNSPLASH (no API key needed)
 # ============================================================
 def fetch_unsplash_photo(search_term):
-    """Fetch a random photo from Unsplash using source.unsplash.com"""
-    # Format search term for URL
-    query = search_term.replace(" ", ",")
-    url = f"https://source.unsplash.com/{IMG_WIDTH}x{IMG_HEIGHT}/?{query}"
+    """Fetch a random photo from Unsplash API."""
+    access_key = os.environ.get("UNSPLASH_ACCESS_KEY", "")
+    if not access_key:
+        print("No Unsplash key found, using fallback")
+        return None
 
-    print(f"Fetching photo: {url}")
+    query = search_term.replace(" ", "+")
+    url = f"https://api.unsplash.com/photos/random?query={query}&orientation=squarish&client_id={access_key}"
+
+    print(f"Fetching photo for: {search_term}")
     try:
-        response = requests.get(url, timeout=20, allow_redirects=True)
-        if response.status_code == 200 and len(response.content) > 10000:
-            img = Image.open(BytesIO(response.content)).convert("RGB")
-            img = img.resize((IMG_WIDTH, IMG_HEIGHT), Image.LANCZOS)
-            print(f"Photo fetched: {img.size}")
-            return img
-        else:
-            print(f"Photo fetch failed: status {response.status_code}, size {len(response.content)}")
+        response = requests.get(url, timeout=15)
+        data = response.json()
+
+        if "errors" in data:
+            print(f"Unsplash error: {data['errors']}")
             return None
+
+        photo_url = data["urls"]["regular"]
+        print(f"Photo URL: {photo_url}")
+
+        img_response = requests.get(photo_url, timeout=20)
+        if img_response.status_code == 200:
+            img = Image.open(BytesIO(img_response.content)).convert("RGB")
+            img = img.resize((IMG_WIDTH, IMG_HEIGHT), Image.LANCZOS)
+            print(f"Photo fetched successfully")
+            return img
+        return None
     except Exception as e:
         print(f"Photo fetch error: {e}")
         return None
