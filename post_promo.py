@@ -53,15 +53,15 @@ PHOTO_THEMES = [
 COPY_PAIRS = [
     (
         "शोर में भी\nएक आवाज़ थी मेरी।",
-        "I began writing to find calm in the noise.\n\nMaybe you'll find yours here too. 🔗 Link in bio"
+        "I began writing to find calm in the noise.\n\nMaybe you'll find yours here too. 🔗 Link below"
     ),
     (
         "रुकना भी\nज़रूरी होता है।",
-        "In a world moving too fast, this is your pause.\n\nद Thoughts Within — link in bio 🌿"
+        "In a world moving too fast, this is your pause.\n\nद Thoughts Within — link below 🌿"
     ),
     (
         "बिखरे ख़यालों को\nयहाँ घर मिला।",
-        "Scattered thoughts. Quiet reflections. A place to slow down.\n\nJoin us — link in bio 📖"
+        "Scattered thoughts. Quiet reflections. A place to slow down.\n\nJoin us — link below 📖"
     ),
     (
         "अनकहा भी\nकहीं लिखा होता है।",
@@ -69,11 +69,11 @@ COPY_PAIRS = [
     ),
     (
         "तुम्हारे जज़्बात भी\nइन्हीं शब्दों में हैं।",
-        "These words carry feelings you might recognize too — calm, hope, fear, meaning.\n\nLink in bio 🌸"
+        "These words carry feelings you might recognize too — calm, hope, fear, meaning.\n\nLink below 🌸"
     ),
     (
         "सवालों के साथ\nबैठना सीखा।",
-        "I learned it's okay to be uncertain. Poetry taught me that.\n\nRead more — link in bio 🌿"
+        "I learned it's okay to be uncertain. Poetry taught me that.\n\nRead more — link below 🌿"
     ),
     (
         "छोटे लम्हों में\nबड़े मतलब छुपे हैं।",
@@ -81,7 +81,7 @@ COPY_PAIRS = [
     ),
     (
         "जो तुम सोचते हो,\nमैंने लिखा है।",
-        "Started as scattered thoughts scribbled at unexpected times.\n\nNow shared for the connection that comes from noticing together. 🔗 Link in bio"
+        "Started as scattered thoughts scribbled at unexpected times.\n\nNow shared for the connection that comes from noticing together. \n\n🔗 Link below"
     ),
     (
         "कुछ बातें\nसमझनी नहीं,\nमहसूस करनी होती हैं।",
@@ -94,7 +94,7 @@ COPY_PAIRS = [
         
     (
         "हर कोई\nकुछ छुपाकर जी रहा है।",
-        "Poetry has a way of finding the hidden parts of us.\n\nLink in bio 📖"
+        "Poetry has a way of finding the hidden parts of us.\n\nLink below 📖"
     ),
         
     (
@@ -114,7 +114,7 @@ COPY_PAIRS = [
         
     (
         "थोड़ा ठहरना\nभी ज़रूरी है।",
-        "A quiet corner for heavy hearts and thoughtful minds.\n\nLink in bio 🌙"
+        "A quiet corner for heavy hearts and thoughtful minds.\n\nLink below 🌙"
     ),
         
     (
@@ -130,7 +130,7 @@ COPY_PAIRS = [
         
     (
         "जो कह नहीं पाए,\nवो लिख दिया।",
-        "Sometimes writing is just another form of surviving.\n\nLink in bio 🌿"
+        "Sometimes writing is just another form of surviving.\n\nLink below 🌿"
     ),
         
     (
