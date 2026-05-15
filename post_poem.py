@@ -67,7 +67,7 @@ def pick_random_stanza(all_stanzas):
     print("Picking a random stanza...")
     title, stanza = random.choice(all_stanzas)
     print(f"Selected from '{title}': {stanza[:60]}...")
-    caption = f"'{title}'\n\nRead the full poem at:\nhttps://anvaykumar.wixsite.com/thethoughtswithin/blog\n\n{HASHTAGS}"
+    caption = f"𝘼 𝙫𝙚𝙧𝙨𝙚 𝙛𝙧𝙤𝙢 '{title}'\n\n𝘙𝘦𝘢𝘥 𝘵𝘩𝘦 𝘧𝘶𝘭𝘭 𝘱𝘰𝘦𝘮 — 𝘭𝘪𝘯𝘬 𝘪𝘯 𝘣𝘪𝘰 🔗\n\n{HASHTAGS}"
     return {"title": title, "stanza": stanza, "caption": caption}
 
 
