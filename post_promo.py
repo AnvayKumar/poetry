@@ -53,94 +53,94 @@ PHOTO_THEMES = [
 # ============================================================
 COPY_PAIRS = [
     (
-        "शोर में भी\nएक आवाज़ थी मेरी।",
+        "शोर में भी\nएक आवाज़ थी मेरी",
         "I began writing to find calm in the noise.\n\nMaybe you'll find yours here too. 🔗 Link below"
     ),
     (
-        "रुकना भी\nज़रूरी होता है।",
+        "रुकना भी\nज़रूरी होता है",
         "In a world moving too fast, this is your pause.\n\nद Thoughts Within — link below 🌿"
     ),
     (
-        "बिखरे ख़यालों को\nयहाँ घर मिला।",
+        "बिखरे ख़यालों को\nयहाँ घर मिला",
         "Scattered thoughts. Quiet reflections. A place to slow down.\n\nJoin us — link below 📖"
     ),
     (
-        "अनकहा भी\nकहीं लिखा होता है।",
+        "अनकहा भी\nकहीं लिखा होता है",
         "What you couldn't say out loud — it's written here.\n\nFollow @the.thoughtswithin 🖊️"
     ),
     (
-        "तुम्हारे जज़्बात भी\nइन्हीं शब्दों में हैं।",
+        "तुम्हारे जज़्बात भी\nइन्हीं शब्दों में हैं",
         "These words carry feelings you might recognize too — calm, hope, fear, meaning.\n\nLink below 🌸"
     ),
     (
-        "सवालों के साथ\nबैठना सीखा।",
+        "सवालों के साथ\nबैठना सीखा",
         "I learned it's okay to be uncertain. Poetry taught me that.\n\nRead more — link below 🌿"
     ),
     (
-        "छोटे लम्हों में\nबड़े मतलब छुपे हैं।",
+        "छोटे लम्हों में\nबड़े मतलब छुपे हैं",
         "Simple moments can hold meaning — if you pause long enough to notice.\n\nद Thoughts Within 📖"
     ),
     (
-        "जो तुम सोचते हो,\nमैंने लिखा है।",
+        "जो तुम सोचते हो,\nमैंने लिखा है",
         "Started as scattered thoughts scribbled at unexpected times.\n\nNow shared for the connection that comes from noticing together. \n\n🔗 Link below"
     ),
     (
-        "कुछ बातें\nसमझनी नहीं,\nमहसूस करनी होती हैं।",
+        "कुछ बातें\nसमझनी नहीं,\nमहसूस करनी होती हैं",
         "Not every feeling asks to be explained.\n\nSome just ask you to pause. 🌙"
     ),
     (
-        "भीतर का शोर\nकभी-कभी\nशब्द बन जाता है।",
+        "भीतर का शोर\nकभी-कभी\nशब्द बन जाता है",
         "For all the thoughts that never found a voice.\n\nMaybe they'll find one here. ✍️"
     ),
         
     (
-        "हर कोई\nकुछ छुपाकर जी रहा है।",
+        "हर कोई\nकुछ छुपाकर जी रहा है",
         "Poetry has a way of finding the hidden parts of us.\n\nLink below 📖"
     ),
         
     (
-        "जो रह गया था,\nवो यहीं लिखा है।",
+        "जो रह गया था,\nवो यहीं लिखा है",
         "Some feelings stay unfinished.\n\nUntil they become poetry. 🌿"
     ),
         
     (
-        "ख़ामोशी भी\nबहुत कुछ कहती है।",
+        "ख़ामोशी भी\nबहुत कुछ कहती है",
         "Not all conversations need sound.\n\nSome only need honesty. ✨"
     ),
         
     (
-        "कभी खुद को\nभी पढ़ लिया करो।",
+        "कभी खुद को\nभी पढ़ लिया करो",
         "The deepest words are often the ones we avoid.\n\nद Thoughts Within 🔗"
     ),
         
     (
-        "थोड़ा ठहरना\nभी ज़रूरी है।",
+        "थोड़ा ठहरना\nभी ज़रूरी है",
         "A quiet corner for heavy hearts and thoughtful minds.\n\nLink below 🌙"
     ),
         
     (
-        "कुछ जज़्बात\nनाम नहीं माँगते।",
+        "कुछ जज़्बात\nनाम नहीं माँगते",
         "You don't always need to understand a feeling to connect with it.\n\nFollow for more 🖊️"
     ),
         
    
     (
-        "भीतर जो चल रहा है,\nशायद वही कविता है।",
+        "भीतर जो चल रहा है,\nशायद\nवही कविता है",
         "Words for the things we carry quietly.\n\nद Thoughts Within 📖"
     ),
         
     (
-        "जो कह नहीं पाए,\nवो लिख दिया।",
+        "जो कह नहीं पाए,\nवो लिख दिया",
         "Sometimes writing is just another form of surviving.\n\nLink below 🌿"
     ),
         
     (
-        "हर इंसान के भीतर\nएक अधूरी कहानी।",
+        "हर इंसान के भीतर\nएक अधूरी कहानी है",
         "Maybe that's why poetry feels personal.\n\nBecause it is. ✨"
     ),
         
     (
-        "कुछ एहसास\nवक़्त से भी पुराने।",
+        "कुछ एहसास\nवक़्त से भी पुराने",
         "Poetry holds the feelings time couldn't erase.\n\nRead more 🔗"
     ),
         
