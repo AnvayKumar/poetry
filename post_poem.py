@@ -5,6 +5,7 @@
 import os
 import csv
 import glob
+import json
 import random
 import base64
 import time
@@ -349,6 +350,26 @@ def post_to_instagram(image_url, caption):
 
     print(f"Successfully posted! Post ID: {result['id']}")
     return result["id"]
+
+
+# ============================================================
+# HISTORY TRACKING
+# ============================================================
+import json
+
+HISTORY_FILE = "posted_history.json"
+
+def load_history():
+    if os.path.exists(HISTORY_FILE):
+        with open(HISTORY_FILE, "r") as f:
+            return json.load(f)
+    return []
+
+def save_history(history, new_item):
+    history.append(new_item)
+    history = history[-5:]  # Keep only last 5
+    with open(HISTORY_FILE, "w") as f:
+        json.dump(history, f)
 
 
 # ============================================================
