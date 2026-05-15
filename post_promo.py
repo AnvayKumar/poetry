@@ -401,7 +401,7 @@ def main():
 
     caption = (
         f"{english_caption}\n\n"
-        f"📖 {BLOG_URL}\n\n"
+        # f"📖 {BLOG_URL}\n\n"
         f"{HASHTAGS}"
     )
 
