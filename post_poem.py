@@ -66,7 +66,12 @@ def fetch_all_stanzas():
 # ============================================================
 def pick_random_stanza(all_stanzas):
     print("Picking a random stanza...")
-    title, stanza = random.choice(all_stanzas)
+    history = load_history()
+    available = [(t, s) for t, s in all_stanzas if s not in history]
+    if not available:
+        available = all_stanzas  # Reset if all used
+    title, stanza = random.choice(available)
+    save_history(history, stanza)
     print(f"Selected from '{title}': {stanza[:60]}...")
     caption = f"𝘼 𝙫𝙚𝙧𝙨𝙚 𝙛𝙧𝙤𝙢 '{title}'\n\n𝘙𝘦𝘢𝘥 𝘵𝘩𝘦 𝘧𝘶𝘭𝘭 𝘱𝘰𝘦𝘮 — 𝘭𝘪𝘯𝘬 𝘪𝘯 𝘣𝘪𝘰 🔗\n\n{HASHTAGS}"
     return {"title": title, "stanza": stanza, "caption": caption}
