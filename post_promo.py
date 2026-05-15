@@ -4,6 +4,7 @@
 
 import os
 import glob
+import json
 import random
 import base64
 import time
@@ -392,12 +393,35 @@ def post_to_instagram(image_url, caption):
 
 
 # ============================================================
+# HISTORY TRACKING
+# ============================================================
+PROMO_HISTORY_FILE = "promo_history.json"
+
+def load_promo_history():
+    if os.path.exists(PROMO_HISTORY_FILE):
+        with open(PROMO_HISTORY_FILE, "r") as f:
+            return json.load(f)
+    return []
+
+def save_promo_history(history, new_item):
+    history.append(new_item)
+    history = history[-5:]
+    with open(PROMO_HISTORY_FILE, "w") as f:
+        json.dump(history, f)
+
+
+# ============================================================
 # MAIN
 # ============================================================
 def main():
     print("Starting promo post...\n")
 
-    hindi_copy, english_caption = random.choice(COPY_PAIRS)
+    history = load_promo_history()
+    available = [(h, e) for h, e in COPY_PAIRS if h not in history]
+    if not available:
+        available = COPY_PAIRS
+    hindi_copy, english_caption = random.choice(available)
+    save_promo_history(history, hindi_copy)
 
     caption = (
         f"{english_caption}\n\n"
