@@ -60,6 +60,32 @@ def fetch_all_stanzas():
     print(f"Found {len(all_stanzas)} stanzas across all poems")
     return all_stanzas
 
+# ============================================================
+# STEP 1.1: Fetch meanings
+# ============================================================
+
+def fetch_meanings():
+    """Fetch the meanings tab from Google Sheet."""
+    meanings_url = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
+    # The meanings sheet - get its gid from the sheet URL when you click on the meanings tab
+    meanings_tab_url = SHEET_CSV_URL.replace("export?format=csv", "export?format=csv&gid=1013316602")
+    
+    try:
+        response = requests.get(meanings_tab_url)
+        response.encoding = "utf-8"
+        reader = csv.DictReader(StringIO(response.text))
+        meanings = {}
+        for row in reader:
+            title = row.get("poem_title", "").strip()
+            num = row.get("stanza_number", "").strip()
+            meaning = row.get("meaning", "").strip()
+            if title and num and meaning:
+                meanings[(title, num)] = meaning
+        print(f"Loaded {len(meanings)} meanings")
+        return meanings
+    except Exception as e:
+        print(f"Could not load meanings: {e}")
+        return {}
 
 # ============================================================
 # STEP 2: Pick a random stanza
@@ -69,11 +95,36 @@ def pick_random_stanza(all_stanzas):
     history = load_history()
     available = [(t, s) for t, s in all_stanzas if s not in history]
     if not available:
-        available = all_stanzas  # Reset if all used
+        available = all_stanzas
     title, stanza = random.choice(available)
     save_history(history, stanza)
     print(f"Selected from '{title}': {stanza[:60]}...")
-    caption = f"𝘼 𝙫𝙚𝙧𝙨𝙚 𝙛𝙧𝙤𝙢 '{title}'\n\n𝘙𝘦𝘢𝘥 𝘵𝘩𝘦 𝘧𝘶𝘭𝘭 𝘱𝘰𝘦𝘮 — 𝘭𝘪𝘯𝘬 𝘪𝘯 𝘣𝘪𝘰 🔗\n\n{HASHTAGS}"
+
+    # Find which stanza number this is
+    meanings = fetch_meanings()
+    meaning = ""
+    for i, (t, s) in enumerate([(t, s) for t, s in all_stanzas if t == title], 1):
+        if s == stanza:
+            meaning = meanings.get((title, str(i)), "")
+            break
+
+    # Build caption
+    if meaning:
+        caption = (
+            f"𝘼 𝙫𝙚𝙧𝙨𝙚 𝙛𝙧𝙤𝙢 '{title}'\n\n"
+            f"🌿 ✦ 🌿\n\n"
+            f"{meaning}\n\n"
+            f"⬇️ ⬇️ ⬇️\n\n"
+            f"𝘙𝘦𝘢𝘥 𝘵𝘩𝘦 𝘧𝘶𝘭𝘭 𝘱𝘰𝘦𝘮 — 𝘭𝘪𝘯𝘬 𝘪𝘯 𝘣𝘪𝘰 🔗\n\n"
+            f"{HASHTAGS}"
+        )
+    else:
+        caption = (
+            f"𝘼 𝙫𝙚𝙧𝙨𝙚 𝙛𝙧𝙤𝙢 '{title}'\n\n"
+            f"𝘙𝘦𝘢𝘥 𝘵𝘩𝘦 𝘧𝘶𝘭𝘭 𝘱𝘰𝘦𝘮 — 𝘭𝘪𝘯𝘬 𝘪𝘯 𝘣𝘪𝘰 🔗\n\n"
+            f"{HASHTAGS}"
+        )
+
     return {"title": title, "stanza": stanza, "caption": caption}
 
 
