@@ -1,0 +1,46 @@
+name: Post Instagram Reel
+
+on:
+  schedule:
+    - cron: '30 5 * * *'  # Every day at 5:30 AM UTC (11:00 AM IST)
+  workflow_dispatch:       # Allow manual trigger for testing
+
+jobs:
+  post-reel:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-noto fonts-noto-cjk
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Post Reel to Instagram
+        env:
+          META_APP_ID: ${{ secrets.META_APP_ID }}
+          META_APP_SECRET: ${{ secrets.META_APP_SECRET }}
+          PAGE_ACCESS_TOKEN: ${{ secrets.PAGE_ACCESS_TOKEN }}
+          IG_ACCOUNT_ID: ${{ secrets.IG_ACCOUNT_ID }}
+          CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
+          CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
+          CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+        run: python post_reel.py
+
+      - name: Commit updated posting history
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add reel_history.json
+          git diff --staged --quiet || git commit -m "Update reel posting history [skip ci]"
+          git push
