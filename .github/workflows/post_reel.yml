@@ -24,7 +24,11 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ffmpeg fonts-noto fonts-noto-cjk
+          sudo apt-get install -y ffmpeg
+          mkdir -p ~/.local/share/fonts
+          curl -L "https://github.com/google/fonts/raw/main/ofl/notosansdevanagari/NotoSansDevanagari%5Bwdth%2Cwght%5D.ttf" \
+            -o ~/.local/share/fonts/NotoSansDevanagari.ttf
+          fc-cache -fv
 
       - name: Install Python dependencies
         run: pip install -r requirements.txt
@@ -38,6 +42,7 @@ jobs:
           CLOUDINARY_CLOUD_NAME: ${{ secrets.CLOUDINARY_CLOUD_NAME }}
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
+          UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
         run: python post_reel.py
 
       - name: Commit updated posting history
