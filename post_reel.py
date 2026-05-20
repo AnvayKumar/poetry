@@ -391,26 +391,67 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
     print(f"Total duration: {total_duration:.1f}s | Frames: {frame_idx}")
 
     frames_pattern = os.path.join(frames_dir, "frame_%06d.jpg")
-    cmd = [
-        "ffmpeg", "-y",
-        "-framerate", str(FPS),
-        "-i", frames_pattern,
-    ]
+
+    # Instagram Reels requirements:
+    # - H.264 video, AAC audio (required even if silent)
+    # - min video bitrate ~3500kbps for 1080x1920
+    # - audio: stereo AAC 128kbps+
+    # - must be at least 3 seconds, under 90 seconds
+
     if music_path and os.path.exists(music_path):
-        cmd += ["-i", music_path,
-                "-c:a", "aac", "-b:a", "192k"]
-    cmd += [
-        "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-        "-pix_fmt", "yuv420p",
-        "-t", str(total_duration),
-        "-movflags", "+faststart",
-        output_path
-    ]
+        cmd = [
+            "ffmpeg", "-y",
+            "-framerate", str(FPS),
+            "-i", frames_pattern,
+            "-stream_loop", "-1",       # loop music if shorter than video
+            "-i", music_path,
+            "-t", str(total_duration),  # duration BEFORE output flags
+            "-c:v", "libx264",
+            "-profile:v", "high",
+            "-level", "4.0",
+            "-preset", "fast",
+            "-b:v", "3500k",            # explicit bitrate Instagram needs
+            "-maxrate", "4000k",
+            "-bufsize", "8000k",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-ac", "2",                 # stereo
+            "-ar", "44100",
+            "-shortest",
+            "-movflags", "+faststart",
+            output_path
+        ]
+    else:
+        # No music: generate a silent AAC audio track (Instagram requires audio)
+        cmd = [
+            "ffmpeg", "-y",
+            "-framerate", str(FPS),
+            "-i", frames_pattern,
+            "-f", "lavfi",
+            "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-t", str(total_duration),
+            "-c:v", "libx264",
+            "-profile:v", "high",
+            "-level", "4.0",
+            "-preset", "fast",
+            "-b:v", "3500k",
+            "-maxrate", "4000k",
+            "-bufsize", "8000k",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-ac", "2",
+            "-ar", "44100",
+            "-shortest",
+            "-movflags", "+faststart",
+            output_path
+        ]
 
     print("Running FFmpeg...")
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
-        print(f"FFmpeg stderr: {result.stderr[-1000:]}")
+        print(f"FFmpeg stderr: {result.stderr[-2000:]}")
         raise Exception("FFmpeg failed")
 
     size_mb = os.path.getsize(output_path) / (1024 * 1024)
