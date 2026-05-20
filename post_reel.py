@@ -104,27 +104,34 @@ def fetch_all_stanzas():
 
 def fetch_meanings():
     print("Fetching meanings from Google Sheet...")
-    # Try gid=1 first, then fall back to sheet name param
-    for url in [MEANINGS_CSV_URL, f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=meanings"]:
+    urls_to_try = [
+        f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&sheet=meanings",
+        f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/gviz/tq?tqx=out:csv&sheet=meanings",
+        f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=1",
+    ]
+    for url in urls_to_try:
         try:
-            response = requests.get(url)
+            response = requests.get(url, timeout=15)
             response.encoding = "utf-8"
-            if response.status_code != 200:
+            print(f"  URL: {url[-60:]} | status: {response.status_code} | size: {len(response.text)}")
+            if response.status_code != 200 or len(response.text) < 20:
                 continue
+            first_line = response.text.split("\n")[0]
+            print(f"  Headers: {first_line[:150]}")
             reader = csv.DictReader(StringIO(response.text))
             meanings = {}
             for row in reader:
-                title = row.get("poem_title", "").strip()
-                num = str(row.get("stanza_number", "")).strip()
+                title   = row.get("poem_title", "").strip()
+                num     = str(row.get("stanza_number", "")).strip()
                 meaning = row.get("meaning", "").strip()
                 if title and num and meaning:
                     meanings[(title, num)] = meaning
+            print(f"  Parsed {len(meanings)} meanings from this URL")
             if meanings:
-                print(f"Found {len(meanings)} meanings")
                 return meanings
         except Exception as e:
-            print(f"Meanings fetch attempt failed: {e}")
-    print("No meanings found, captions will omit meaning")
+            print(f"  Error: {e}")
+    print("WARNING: No meanings found in any URL")
     return {}
 
 
@@ -398,39 +405,18 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
     # - audio: stereo AAC 128kbps+
     # - must be at least 3 seconds, under 90 seconds
 
+    total_dur_str = str(round(total_duration, 3))
+
     if music_path and os.path.exists(music_path):
+        # -stream_loop MUST come before its -i; -t goes on the output, not between inputs
         cmd = [
             "ffmpeg", "-y",
             "-framerate", str(FPS),
-            "-i", frames_pattern,
-            "-stream_loop", "-1",       # loop music if shorter than video
-            "-i", music_path,
-            "-t", str(total_duration),  # duration BEFORE output flags
-            "-c:v", "libx264",
-            "-profile:v", "high",
-            "-level", "4.0",
-            "-preset", "fast",
-            "-b:v", "3500k",            # explicit bitrate Instagram needs
-            "-maxrate", "4000k",
-            "-bufsize", "8000k",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-ac", "2",                 # stereo
-            "-ar", "44100",
-            "-shortest",
-            "-movflags", "+faststart",
-            output_path
-        ]
-    else:
-        # No music: generate a silent AAC audio track (Instagram requires audio)
-        cmd = [
-            "ffmpeg", "-y",
-            "-framerate", str(FPS),
-            "-i", frames_pattern,
-            "-f", "lavfi",
-            "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
-            "-t", str(total_duration),
+            "-i", frames_pattern,           # input 0: video frames
+            "-stream_loop", "-1",           # loop audio input
+            "-i", music_path,               # input 1: music
+            "-map", "0:v:0",
+            "-map", "1:a:0",
             "-c:v", "libx264",
             "-profile:v", "high",
             "-level", "4.0",
@@ -443,7 +429,33 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
             "-b:a", "128k",
             "-ac", "2",
             "-ar", "44100",
-            "-shortest",
+            "-t", total_dur_str,            # duration on output
+            "-movflags", "+faststart",
+            output_path
+        ]
+    else:
+        # No music: lavfi silent audio source
+        cmd = [
+            "ffmpeg", "-y",
+            "-framerate", str(FPS),
+            "-i", frames_pattern,
+            "-f", "lavfi",
+            "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "libx264",
+            "-profile:v", "high",
+            "-level", "4.0",
+            "-preset", "fast",
+            "-b:v", "3500k",
+            "-maxrate", "4000k",
+            "-bufsize", "8000k",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-ac", "2",
+            "-ar", "44100",
+            "-t", total_dur_str,
             "-movflags", "+faststart",
             output_path
         ]
@@ -544,7 +556,7 @@ def main():
 
     meanings = fetch_meanings()
     title, stanza_num, stanza = pick_random_stanza(all_stanzas)
-    meaning = meanings.get((title, stanza_num), "")
+    meaning = meanings.get((title, stanza_num), "") or meanings.get((title, str(int(stanza_num))), "") if stanza_num.isdigit() else meanings.get((title, stanza_num), "")
 
     music_files = glob.glob(os.path.join(MUSIC_FOLDER, "*.mp3"))
     music_path = random.choice(music_files) if music_files else None
