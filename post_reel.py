@@ -237,12 +237,12 @@ def fetch_background_photo():
 
 
 # ============================================================
-# DRAW A SINGLE FRAME (UPDATED SPACING AND PERSISTENCE)
+# DRAW A SINGLE FRAME (PERMANENT STRUCTURAL PERSISTENCE)
 # ============================================================
-def draw_frame(lines_visible, all_lines, poem_title,
+def draw_frame(lines_visible, all_lines, poem_title, show_brand,
                hindi_font_path, latin_font_path, bg_photo, panel_theme):
 
-    # Background processing
+    # Background frame generation
     img = bg_photo.copy()
     dark_overlay = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), (0, 0, 0))
     img = Image.blend(img, dark_overlay, alpha=0.40)
@@ -251,7 +251,330 @@ def draw_frame(lines_visible, all_lines, poem_title,
     draw = ImageDraw.Draw(img, "RGBA")
     panel_fill, title_color, stanza_color, divider_color, brand_color = panel_theme
 
-    # Typography sizes
+    # Typography properties
     font_stanza = ImageFont.truetype(hindi_font_path, 54) if hindi_font_path else ImageFont.load_default()
-    font_title  = ImageFont.truetype(hindi_font_path, 48) if hindi_font_path else ImageFont.load_default()
-    font
+    font_title  = ImageFont.truetype(hindi_font_path, 46) if hindi_font_path else ImageFont.load_default()
+    font_brand  = ImageFont.truetype(latin_font_path, 32) if latin_font_path else font_title
+    font_brand_h = ImageFont.truetype(hindi_font_path, 32) if hindi_font_path else font_title
+
+    cx = VIDEO_WIDTH // 2
+    SIDE_MARGIN      = 90     
+    PAD_TOP          = 80     # Breathable spacing top padding
+    PAD_BOTTOM       = 80     # Breathable spacing bottom padding
+    LINE_GAP         = 32     # Increased gap for stanzas to read easily
+
+    dummy = ImageDraw.Draw(Image.new("RGB", (10, 10)))
+
+    title_bbox = dummy.textbbox((0, 0), poem_title, font=font_title)
+    title_h = title_bbox[3] - title_bbox[1]
+
+    sample_bbox = dummy.textbbox((0, 0), "क", font=font_stanza)
+    line_h = sample_bbox[3] - sample_bbox[1]
+
+    divider_area = 54   
+    stanza_block_h = len(all_lines) * line_h + (len(all_lines) - 1) * LINE_GAP
+
+    # Brand text measurements (Locking total container size to always account for footer spacing)
+    b_bbox = dummy.textbbox((0, 0), "Thoughts Within", font=font_brand)
+    brand_block_h = divider_area + (b_bbox[3] - b_bbox[1]) + 10
+
+    total_content_h = title_h + divider_area + stanza_block_h + brand_block_h
+    panel_w = VIDEO_WIDTH - 2 * SIDE_MARGIN
+    panel_h = total_content_h + PAD_TOP + PAD_BOTTOM
+
+    panel_x0 = SIDE_MARGIN
+    panel_y0 = (VIDEO_HEIGHT - panel_h) // 2
+    panel_x1 = panel_x0 + panel_w
+    panel_y1 = panel_y0 + panel_h
+
+    # Render fixed card container
+    draw.rounded_rectangle(
+        [(panel_x0, panel_y0), (panel_x1, panel_y1)],
+        radius=32,
+        fill=panel_fill
+    )
+    draw.rounded_rectangle(
+        [(panel_x0, panel_y0), (panel_x1, panel_y1)],
+        radius=32,
+        outline=(*divider_color, 100),
+        width=2
+    )
+
+    # Title is drawn on every single frame
+    y = panel_y0 + PAD_TOP
+    tb = draw.textbbox((0, 0), poem_title, font=font_title)
+    draw.text(((VIDEO_WIDTH - (tb[2] - tb[0])) // 2, y),
+              poem_title, font=font_title, fill=(*title_color, 255))
+    y += title_h
+
+    # Top divider drawn on every single frame
+    y += 20
+    draw.line([(cx - 90, y), (cx + 90, y)], fill=(*divider_color, 160), width=1)
+    draw.ellipse([(cx - 4, y - 3), (cx + 4, y + 3)], fill=(*divider_color, 200))
+    y += 34
+
+    # Render lines sequentially
+    for i, line in enumerate(all_lines):
+        if i < lines_visible:
+            lb = draw.textbbox((0, 0), line, font=font_stanza)
+            lw = lb[2] - lb[0]
+            lx = (VIDEO_WIDTH - lw) // 2
+            is_current = (i == lines_visible - 1)
+            color = (*title_color, 255) if is_current else (*stanza_color, 220)
+            draw.text((lx, y), line, font=font_stanza, fill=color)
+        
+        # Keep layout spacing perfectly consistent even if line isn't showing yet
+        y += line_h + LINE_GAP
+
+    # Render footer elements (Controlled explicitly by your original state conditions)
+    if show_brand:
+        y += 4
+        draw.line([(cx - 80, y), (cx + 80, y)], fill=(*divider_color, 120), width=1)
+        draw.ellipse([(cx - 3, y - 3), (cx + 3, y + 3)], fill=(*divider_color, 160))
+        y += 22
+
+        hindi_part = "द "
+        latin_part = "Thoughts Within"
+        hb = draw.textbbox((0, 0), hindi_part, font=font_brand_h)
+        lb2 = draw.textbbox((0, 0), latin_part, font=font_brand)
+        total_w = (hb[2] - hb[0]) + (lb2[2] - lb2[0])
+        bx = (VIDEO_WIDTH - total_w) // 2
+        draw.text((bx, y), hindi_part, font=font_brand_h, fill=(*brand_color, 210))
+        draw.text((bx + (hb[2] - hb[0]), y), latin_part, font=font_brand, fill=(*brand_color, 210))
+
+    return img
+
+
+# ============================================================
+# CREATE REEL VIDEO
+# ============================================================
+def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
+    print("Creating reel video...")
+
+    hindi_font = find_hindi_font(bold=True)
+    latin_font = find_latin_font()
+    bg_photo   = fetch_background_photo()
+    panel_theme = random.choice(PANEL_THEMES)
+
+    lines = [l.strip() for l in stanza_text.split("\n") if l.strip()]
+    print(f"Animating {len(lines)} lines with panel theme index {PANEL_THEMES.index(panel_theme)}")
+
+    # Restored original strict timing configs
+    HOLD_BEFORE    = 1.5
+    SECS_PER_LINE  = 2.5
+    HOLD_AFTER     = 3.0
+    BRAND_DURATION = 2.5
+
+    frames_dir = os.path.join(tmpdir, "frames")
+    os.makedirs(frames_dir, exist_ok=True)
+    frame_idx = 0
+
+    def save_frames(img, count):
+        nonlocal frame_idx
+        for _ in range(count):
+            img.save(os.path.join(frames_dir, f"frame_{frame_idx:06d}.jpg"),
+                     "JPEG", quality=85)
+            frame_idx += 1
+
+    # Stage 0: Keep branding hidden initially to match original script layout conditional structure
+    save_frames(draw_frame(0, lines, poem_title, False, hindi_font, latin_font, bg_photo, panel_theme),
+                int(HOLD_BEFORE * FPS))
+
+    # Stage 1: Reveal poem lines sequentially
+    for i in range(1, len(lines) + 1):
+        save_frames(draw_frame(i, lines, poem_title, False, hindi_font, latin_font, bg_photo, panel_theme),
+                    int(SECS_PER_LINE * FPS))
+
+    # Stage 2: Final showcase hold
+    save_frames(draw_frame(len(lines), lines, poem_title, False, hindi_font, latin_font, bg_photo, panel_theme),
+                int(HOLD_AFTER * FPS))
+
+    # Stage 3: Explicitly restore final state branding frame duration block
+    save_frames(draw_frame(len(lines), lines, poem_title, True, hindi_font, latin_font, bg_photo, panel_theme),
+                int(BRAND_DURATION * FPS))
+
+    total_duration = HOLD_BEFORE + (len(lines) * SECS_PER_LINE) + HOLD_AFTER + BRAND_DURATION
+    print(f"Total duration: {total_duration:.1f}s | Frames: {frame_idx}")
+
+    frames_pattern = os.path.join(frames_dir, "frame_%06d.jpg")
+    total_dur_str = str(round(total_duration, 3))
+
+    if music_path and os.path.exists(music_path):
+        cmd = [
+            "ffmpeg", "-y",
+            "-framerate", str(FPS),
+            "-i", frames_pattern,           
+            "-stream_loop", "-1",           
+            "-i", music_path,               
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "libx264",
+            "-profile:v", "high",
+            "-level", "4.0",
+            "-preset", "fast",
+            "-b:v", "3500k",
+            "-maxrate", "4000k",
+            "-bufsize", "8000k",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-ac", "2",
+            "-ar", "44100",
+            "-t", total_dur_str,            
+            "-movflags", "+faststart",
+            output_path
+        ]
+    else:
+        cmd = [
+            "ffmpeg", "-y",
+            "-framerate", str(FPS),
+            "-i", frames_pattern,
+            "-f", "lavfi",
+            "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-c:v", "libx264",
+            "-profile:v", "high",
+            "-level", "4.0",
+            "-preset", "fast",
+            "-b:v", "3500k",
+            "-maxrate", "4000k",
+            "-bufsize", "8000k",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            "-ac", "2",
+            "-ar", "44100",
+            "-t", total_dur_str,
+            "-movflags", "+faststart",
+            output_path
+        ]
+
+    print("Running FFmpeg...")
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(f"FFmpeg stderr: {result.stderr[-2000:]}")
+        raise Exception("FFmpeg failed")
+
+    size_mb = os.path.getsize(output_path) / (1024 * 1024)
+    print(f"Video created: {size_mb:.1f} MB")
+    return output_path
+
+
+# ============================================================
+# UPLOAD TO CLOUDINARY
+# ============================================================
+def upload_video_to_cloudinary(video_path):
+    print("Uploading video to Cloudinary...")
+    import hashlib
+    import time as time_mod
+
+    timestamp = str(int(time_mod.time()))
+    public_id = f"thoughtswithin_reel_{timestamp}"
+    params_to_sign = f"public_id={public_id}&timestamp={timestamp}"
+    signature = hashlib.sha1(
+        f"{params_to_sign}{CLOUDINARY_API_SECRET}".encode()
+    ).hexdigest()
+
+    url = f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/video/upload"
+    with open(video_path, "rb") as f:
+        response = requests.post(url, data={
+            "api_key": CLOUDINARY_API_KEY,
+            "timestamp": timestamp,
+            "public_id": public_id,
+            "signature": signature,
+        }, files={"file": f}, timeout=180)
+
+    result = response.json()
+    if "secure_url" not in result:
+        raise Exception(f"Cloudinary upload failed: {result}")
+    print(f"Video URL: {result['secure_url']}")
+    return result["secure_url"]
+
+
+# ============================================================
+# POST REEL TO INSTAGRAM
+# ============================================================
+def post_reel_to_instagram(video_url, caption):
+    print("Posting Reel to Instagram...")
+    create_url = f"https://graph.facebook.com/v18.0/{INSTAGRAM_BUSINESS_ACCOUNT_ID}/media"
+    response = requests.post(create_url, data={
+        "media_type": "REELS",
+        "video_url": video_url,
+        "caption": caption,
+        "share_to_feed": "true",
+        "access_token": PAGE_ACCESS_TOKEN
+    })
+    result = response.json()
+    if "id" not in result:
+        raise Exception(f"Failed to create reel container: {result}")
+
+    container_id = result["id"]
+    print(f"Container created: {container_id} — polling for processing...")
+    for attempt in range(18):
+        time.sleep(10)
+        status = requests.get(
+            f"https://graph.facebook.com/v18.0/{container_id}"
+            f"?fields=status_code,status&access_token={PAGE_ACCESS_TOKEN}"
+        ).json()
+        code = status.get("status_code", "")
+        print(f"Attempt {attempt + 1}: {code}")
+        if code == "FINISHED":
+            break
+        elif code == "ERROR":
+            raise Exception(f"Instagram processing failed: {status}")
+
+    response = requests.post(
+        f"https://graph.facebook.com/v18.0/{INSTAGRAM_BUSINESS_ACCOUNT_ID}/media_publish",
+        data={"creation_id": container_id, "access_token": PAGE_ACCESS_TOKEN}
+    ).json()
+    if "id" not in response:
+        raise Exception(f"Failed to publish reel: {response}")
+    print(f"Reel posted! ID: {response['id']}")
+    return response["id"]
+
+
+# ============================================================
+# MAIN
+# ============================================================
+def main():
+    print("Starting The Thoughts Within Reel poster...\n")
+
+    all_stanzas = fetch_all_stanzas()
+    if not all_stanzas:
+        raise Exception("No stanzas found in Google Sheet.")
+
+    meanings = fetch_meanings()
+    title, stanza_num, stanza = pick_random_stanza(all_stanzas)
+    meaning = meanings.get((title, stanza_num), "") or meanings.get((title, str(int(stanza_num))), "") if stanza_num.isdigit() else meanings.get((title, stanza_num), "")
+
+    music_files = glob.glob(os.path.join(MUSIC_FOLDER, "*.mp3"))
+    music_path = random.choice(music_files) if music_files else None
+    if music_path:
+        print(f"Music: {os.path.basename(music_path)}")
+
+    if meaning:
+        caption = (
+            f"𝘼 𝙫𝙚𝙧𝙨𝙚 𝙛𝙧𝙤𝙢 '{title}'\n\n"
+            f"✦ {meaning}\n\n"
+            f"𝘙𝘦𝘢𝘥 𝘵𝘩𝘦 𝘧𝘶𝘭𝘭 𝘱𝘰𝘦𝘮 — 𝘭𝘪𝘯𝘬 𝘪𝘯 𝘣𝘪ο 🔗\n\n"
+            f"{HASHTAGS}"
+        )
+    else:
+        caption = (
+            f"𝘼 𝙫𝙚𝙧𝙨𝙚 𝙛𝙧𝙤𝙢 '{title}'\n\n"
+            f"𝘙𝘦𝘢𝘥 𝘵𝘩𝘦 𝘧𝘶𝘭𝘭 𝘱𝘰𝘦𝘮 — 𝘭𝘪𝘯𝘬 𝘪𝘯 𝘣𝘪ο 🔗\n\n"
+            f"{HASHTAGS}"
+        )
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        video_path = os.path.join(tmpdir, "reel.mp4")
+        create_reel_video(stanza, title, music_path, video_path, tmpdir)
+        video_url = upload_video_to_cloudinary(video_path)
+        post_reel_to_instagram(video_url, caption)
+
+    print("\nDone! Reel posted to @_thethoughtswithin")
+
+
+if __name__ == "__main__":
+    main()
