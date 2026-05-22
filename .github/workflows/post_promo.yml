@@ -2,8 +2,7 @@ name: Daily Promo Post to Instagram
 
 on:
   schedule:
-    # Every day at 7:00 AM UTC (12:30 PM IST)
-    - cron: '0 7 */4 * *'
+    - cron: '0 15 * * 4'        # Every Thursday at 8:30 PM IST 
   workflow_dispatch:
 
 jobs:
