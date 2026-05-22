@@ -2,7 +2,7 @@ name: Post Poetry to Instagram
 
 on:
   schedule:
-    - cron: '0 15 * * 0'        # Sunday at 8:30 PM IST
+    - cron: '0 11 * * 6'        # Saturday at 5:00 PM IST
   workflow_dispatch:
 
 jobs:
