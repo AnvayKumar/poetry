@@ -330,7 +330,8 @@ def draw_frame(lines_alpha, all_lines, poem_title, title_alpha, show_brand,
             lw = lb[2] - lb[0]
             lx = (VIDEO_WIDTH - lw) // 2
             # Most recently revealed line uses title color, rest use stanza color
-            is_latest = (i == max((k for k, v in lines_alpha.items() if v > 0), default=-1))
+            int_keys = [k for k, v in lines_alpha.items() if isinstance(k, int) and v > 0]
+            is_latest = (i == max(int_keys, default=-1))
             color = title_color if is_latest else stanza_color
             draw.text((lx, y), line, font=font_stanza, fill=(*color, alpha))
         y += line_h + LINE_GAP
