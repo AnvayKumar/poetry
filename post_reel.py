@@ -25,15 +25,14 @@ CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET", "")
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "")
 
 SHEET_ID = "1Rh_LmGQ9khrYX-9vBh9SkK9ygS-j0LcjQig65TS7DLI"
-SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-MUSIC_FOLDER = "music"
+SHEET_CSV_URL   = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
+MUSIC_FOLDER    = "music"
 REEL_HISTORY_FILE = "reel_history.json"
 
 VIDEO_WIDTH  = 1080
 VIDEO_HEIGHT = 1920
 FPS          = 30
 
-# Caption has no hashtags — posted as first comment instead
 HASHTAGS = "#hindi #hindikavita #hindishayari #poetry #poem #indianpoetry #thoughtswithin #shayari #kavita #hindipoetry #poetrycommunity #wordsmith #hindiwriters #reels #poetryreels"
 
 PHOTO_QUERIES = [
@@ -51,7 +50,6 @@ PHOTO_QUERIES = [
     "winter snow trees",
 ]
 
-# Panel themes: (fill_rgba, title_color, stanza_color, divider_color, brand_color)
 PANEL_THEMES = [
     ((255, 252, 245, 235), (120, 60,  20),  (60,  35, 10),  (180, 140, 100), (140, 100, 60)),
     ((245, 248, 255, 230), (30,  55, 110),  (20,  40, 80),  (110, 140, 190), (80,  110, 160)),
@@ -70,7 +68,6 @@ def load_reel_history():
         with open(REEL_HISTORY_FILE, "r") as f:
             return json.load(f)
     return []
-
 
 def save_reel_history(history, new_item):
     history.append(new_item)
@@ -100,7 +97,6 @@ def fetch_all_stanzas():
                 all_stanzas.append((title, stanza_num, value.strip()))
     print(f"Found {len(all_stanzas)} stanzas")
     return all_stanzas
-
 
 def fetch_meanings():
     print("Fetching meanings from Google Sheet...")
@@ -133,7 +129,6 @@ def fetch_meanings():
     print("WARNING: No meanings found")
     return {}
 
-
 def pick_random_stanza(all_stanzas):
     history = load_reel_history()
     available = [(t, n, s) for t, n, s in all_stanzas if s not in history]
@@ -149,11 +144,10 @@ def pick_random_stanza(all_stanzas):
 # FONT HELPERS
 # ============================================================
 def find_hindi_font():
-    direct_paths = [
+    for p in [
         os.path.expanduser("~/.local/share/fonts/NotoSansDevanagari.ttf"),
         "/usr/share/fonts/NotoSansDevanagari.ttf",
-    ]
-    for p in direct_paths:
+    ]:
         if os.path.exists(p):
             print(f"Using font: {p}")
             return p
@@ -173,7 +167,6 @@ def find_hindi_font():
         if os.path.exists(p):
             return p
     return None
-
 
 def find_latin_font():
     for p in [
@@ -195,8 +188,8 @@ def fetch_background_photo():
     if UNSPLASH_ACCESS_KEY:
         try:
             resp = requests.get(
-                f"https://api.unsplash.com/photos/random"
-                f"?query={requests.utils.quote(query)}&orientation=portrait&content_filter=high",
+                "https://api.unsplash.com/photos/random",
+                params={"query": query, "orientation": "portrait", "content_filter": "high"},
                 headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"},
                 timeout=15
             )
@@ -236,74 +229,77 @@ def fetch_background_photo():
 
 
 # ============================================================
-# COMPOSITE HELPERS
+# EASE CURVE
 # ============================================================
 def ease_out(t):
-    """Ease-out curve: fast start, gentle settle. t in [0,1]"""
     return 1 - (1 - t) ** 3
 
 
-def render_panel(draw, panel_theme, panel_x0, panel_y0, panel_x1, panel_y1, alpha_frac):
-    """Draw the panel rectangle at a given opacity fraction [0-1]."""
-    panel_fill, _, _, divider_color, _ = panel_theme
-    fill_a   = int(panel_fill[3] * alpha_frac)
-    border_a = int(100 * alpha_frac)
-    draw.rounded_rectangle([(panel_x0, panel_y0), (panel_x1, panel_y1)],
-                           radius=32, fill=(*panel_fill[:3], fill_a))
-    draw.rounded_rectangle([(panel_x0, panel_y0), (panel_x1, panel_y1)],
-                           radius=32, outline=(*divider_color, border_a), width=2)
-
-
 # ============================================================
-# MEASURE LAYOUT  (call once, reuse every frame)
+# MEASURE LAYOUT
+# Auto-fits font size so the longest line never overflows the panel.
 # ============================================================
 def measure_layout(lines, poem_title, hindi_font, latin_font):
-    font_stanza  = ImageFont.truetype(hindi_font, 54)
-    font_title   = ImageFont.truetype(hindi_font, 46)
-    font_brand   = ImageFont.truetype(latin_font, 32) if latin_font else font_title
-    font_brand_h = ImageFont.truetype(hindi_font, 32)
+    SIDE_MARGIN    = 100   # panel left/right from frame edge
+    INNER_PAD_X    = 65    # text margin inside panel each side
+    LINE_GAP       = 46    # breathing room between stanza lines
+    DIVIDER_AREA   = 58    # space for divider + gaps around it
+    BRAND_DIV_AREA = 52
+    PAD_TOP        = 90
+    PAD_BOTTOM     = 90
+
+    panel_w      = VIDEO_WIDTH - 2 * SIDE_MARGIN
+    max_text_w   = panel_w - 2 * INNER_PAD_X   # max width any line can occupy
 
     dummy = ImageDraw.Draw(Image.new("RGB", (10, 10)))
 
-    title_bbox  = dummy.textbbox((0, 0), poem_title, font=font_title)
+    # Start at 48px, reduce by 2 until all lines fit
+    stanza_size = 48
+    while stanza_size >= 26:
+        font_test = ImageFont.truetype(hindi_font, stanza_size)
+        widths = [dummy.textbbox((0,0), l, font=font_test)[2]
+                  - dummy.textbbox((0,0), l, font=font_test)[0]
+                  for l in lines]
+        if max(widths) <= max_text_w:
+            break
+        stanza_size -= 2
+
+    font_stanza  = ImageFont.truetype(hindi_font, stanza_size)
+    title_size   = max(30, stanza_size - 6)
+    font_title   = ImageFont.truetype(hindi_font, title_size)
+    font_brand   = ImageFont.truetype(latin_font, 28) if latin_font else font_title
+    font_brand_h = ImageFont.truetype(hindi_font, 28)
+
+    title_bbox  = dummy.textbbox((0,0), poem_title, font=font_title)
     title_h     = title_bbox[3] - title_bbox[1]
     title_w     = title_bbox[2] - title_bbox[0]
 
-    sample_bbox = dummy.textbbox((0, 0), "क", font=font_stanza)
+    sample_bbox = dummy.textbbox((0,0), "क", font=font_stanza)
     line_h      = sample_bbox[3] - sample_bbox[1]
 
-    line_widths = []
-    for line in lines:
-        lb = dummy.textbbox((0, 0), line, font=font_stanza)
-        line_widths.append(lb[2] - lb[0])
+    line_widths = [dummy.textbbox((0,0), l, font=font_stanza)[2]
+                   - dummy.textbbox((0,0), l, font=font_stanza)[0]
+                   for l in lines]
 
-    b_bbox      = dummy.textbbox((0, 0), "Thoughts Within", font=font_brand)
-    brand_h     = b_bbox[3] - b_bbox[1]
-
-    LINE_GAP       = 36
-    DIVIDER_AREA   = 54
-    BRAND_DIV_AREA = 50
-    PAD_TOP        = 80
-    PAD_BOTTOM     = 80
-    SIDE_MARGIN    = 90
+    b_bbox  = dummy.textbbox((0,0), "Thoughts Within", font=font_brand)
+    brand_h = b_bbox[3] - b_bbox[1]
 
     stanza_block_h  = len(lines) * line_h + (len(lines) - 1) * LINE_GAP
     total_content_h = title_h + DIVIDER_AREA + stanza_block_h + BRAND_DIV_AREA + brand_h + 10
     panel_h         = total_content_h + PAD_TOP + PAD_BOTTOM
-    panel_w         = VIDEO_WIDTH - 2 * SIDE_MARGIN
     panel_x0        = SIDE_MARGIN
     panel_y0        = (VIDEO_HEIGHT - panel_h) // 2
     panel_x1        = panel_x0 + panel_w
     panel_y1        = panel_y0 + panel_h
     cx              = VIDEO_WIDTH // 2
 
+    print(f"Layout: font={stanza_size}px, max_line={max(line_widths)}px / {max_text_w}px, panel_h={panel_h}px")
+
     return {
-        "font_stanza":  font_stanza,
-        "font_title":   font_title,
-        "font_brand":   font_brand,
-        "font_brand_h": font_brand_h,
+        "font_stanza": font_stanza, "font_title": font_title,
+        "font_brand": font_brand,   "font_brand_h": font_brand_h,
         "title_h": title_h, "title_w": title_w,
-        "line_h": line_h, "line_widths": line_widths,
+        "line_h": line_h,   "line_widths": line_widths,
         "brand_h": brand_h,
         "LINE_GAP": LINE_GAP, "DIVIDER_AREA": DIVIDER_AREA,
         "BRAND_DIV_AREA": BRAND_DIV_AREA,
@@ -315,76 +311,83 @@ def measure_layout(lines, poem_title, hindi_font, latin_font):
 
 
 # ============================================================
-# DRAW FRAME — three phases controlled by caller
+# DRAW FRAME
 #
-#   title_alpha  : 0-255  panel + title opacity
-#   stanza_alpha : 0-255  all stanza lines opacity
-#   stanza_offset: pixels stanza block is shifted DOWN from final pos (slide-up)
-#   brand_alpha  : 0-255  brand opacity
+#  title_alpha   0-255  panel + title fade
+#  stanza_alpha  0-255  stanza block fade
+#  stanza_offset px     stanza slides UP from this offset to 0
+#  brand_alpha   0-255  brand fade
 # ============================================================
 def draw_frame(bg_photo, panel_theme, layout, lines, poem_title,
                title_alpha, stanza_alpha, stanza_offset, brand_alpha):
 
-    img = bg_photo.copy()
+    img  = bg_photo.copy()
     dark = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), (0, 0, 0))
-    img  = Image.blend(img, dark, alpha=0.40)
+    img  = Image.blend(img, dark, alpha=0.42)
     img  = img.filter(ImageFilter.GaussianBlur(radius=4))
     draw = ImageDraw.Draw(img, "RGBA")
 
     panel_fill, title_color, stanza_color, divider_color, brand_color = panel_theme
-    L = layout
-
-    # ---- Panel (fades with title) ----
+    L  = layout
     ta = title_alpha / 255
-    render_panel(draw, panel_theme,
-                 L["panel_x0"], L["panel_y0"], L["panel_x1"], L["panel_y1"], ta)
-
     cx = L["cx"]
-    y  = L["panel_y0"] + L["PAD_TOP"]
 
-    # ---- Title ----
+    # Panel
+    draw.rounded_rectangle(
+        [(L["panel_x0"], L["panel_y0"]), (L["panel_x1"], L["panel_y1"])],
+        radius=32,
+        fill=(*panel_fill[:3], int(panel_fill[3] * ta))
+    )
+    draw.rounded_rectangle(
+        [(L["panel_x0"], L["panel_y0"]), (L["panel_x1"], L["panel_y1"])],
+        radius=32,
+        outline=(*divider_color, int(110 * ta)),
+        width=2
+    )
+
+    y = L["panel_y0"] + L["PAD_TOP"]
+
+    # Title
     tx = (VIDEO_WIDTH - L["title_w"]) // 2
     draw.text((tx, y), poem_title,
               font=L["font_title"], fill=(*title_color, title_alpha))
-    y += L["title_h"] + 20
+    y += L["title_h"] + 18
 
-    # ---- Divider under title ----
-    draw.line([(cx - 90, y), (cx + 90, y)],
+    # Divider under title
+    draw.line([(cx - 85, y), (cx + 85, y)],
               fill=(*divider_color, int(160 * ta)), width=1)
     draw.ellipse([(cx - 4, y - 3), (cx + 4, y + 3)],
                  fill=(*divider_color, int(200 * ta)))
-    y += L["DIVIDER_AREA"] - 20
+    y += L["DIVIDER_AREA"] - 18
 
-    # ---- Stanza block (slides up + fades in together) ----
-    sa = stanza_alpha / 255
-    stanza_y = y + stanza_offset   # offset > 0 = below final position → slides up to 0
-
+    # Stanza block — slides up from stanza_offset, fades in
+    stanza_y = y + stanza_offset
     for i, line in enumerate(lines):
-        lx = (VIDEO_WIDTH - L["line_widths"][i]) // 2
-        draw.text((lx, int(stanza_y)), line,
-                  font=L["font_stanza"], fill=(*stanza_color, stanza_alpha))
+        if stanza_alpha > 0:
+            lx = (VIDEO_WIDTH - L["line_widths"][i]) // 2
+            draw.text((lx, int(stanza_y)), line,
+                      font=L["font_stanza"], fill=(*stanza_color, stanza_alpha))
         stanza_y += L["line_h"] + L["LINE_GAP"]
 
-    # y for brand = fixed final stanza position end (regardless of animation offset)
+    # Brand — positioned from fixed final stanza end (not animated offset)
     y += len(lines) * L["line_h"] + (len(lines) - 1) * L["LINE_GAP"] + L["BRAND_DIV_AREA"]
 
-    # ---- Brand ----
-    ba = brand_alpha / 255
     if brand_alpha > 0:
-        draw.line([(cx - 80, y), (cx + 80, y)],
+        ba = brand_alpha / 255
+        draw.line([(cx - 75, y), (cx + 75, y)],
                   fill=(*divider_color, int(120 * ba)), width=1)
         draw.ellipse([(cx - 3, y - 3), (cx + 3, y + 3)],
                      fill=(*divider_color, int(160 * ba)))
-        y += 26
+        y += 24
         hindi_part = "द "
         latin_part = "Thoughts Within"
-        hb  = draw.textbbox((0, 0), hindi_part, font=L["font_brand_h"])
-        lb2 = draw.textbbox((0, 0), latin_part, font=L["font_brand"])
-        total_w = (hb[2] - hb[0]) + (lb2[2] - lb2[0])
+        hb  = draw.textbbox((0,0), hindi_part, font=L["font_brand_h"])
+        lb2 = draw.textbbox((0,0), latin_part, font=L["font_brand"])
+        total_w = (hb[2]-hb[0]) + (lb2[2]-lb2[0])
         bx = (VIDEO_WIDTH - total_w) // 2
         draw.text((bx, y), hindi_part,
                   font=L["font_brand_h"], fill=(*brand_color, brand_alpha))
-        draw.text((bx + (hb[2] - hb[0]), y), latin_part,
+        draw.text((bx + (hb[2]-hb[0]), y), latin_part,
                   font=L["font_brand"], fill=(*brand_color, brand_alpha))
 
     return img
@@ -406,16 +409,14 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
 
     layout = measure_layout(lines, poem_title, hindi_font, latin_font)
 
-    # ---- Timing constants (frames) ----
-    TITLE_FADE   = 12   # panel + title fade in       (~0.4s)
-    TITLE_HOLD   = 18   # title sits alone             (~0.6s)
-    STANZA_TRANS = 18   # slide-up + fade in           (~0.6s) — the beautiful part
-    STANZA_HOLD  = 120  # full poem readable           (~4.0s)
-    BRAND_FADE   = 12   # brand fades in               (~0.4s)
-    BRAND_HOLD   = 60   # brand holds                  (~2.0s)
-
-    SLIDE_PX = 60       # stanza starts 60px below final position, slides up
-
+    # Timing (frames @ 30fps), all timings values are seconds*30. So if you want something to happen for 1 second, the actual value should be set to 30 
+    TITLE_FADE   = 15   # panel + title + brand fade in together       (~0.5s) - how long the panel and title take to fade in from invisible to fully visible. It's an animated transition, not a hold.
+    TITLE_HOLD   = 60   # title + brand alone                          (~2.0s) - after the title has fully appeared, how long it sits there alone before the poem starts coming in. This is the pause where someone reads the poem name.
+    STANZA_TRANS = 40   # poem fades in slowly                         (~1.3s) - fade in time for the stanza 
+    STANZA_HOLD  = 240  # full poem hold                               (~8.0s) - after the poem has fully arrived, how long it stays on screen before anything else happens. This is the reading time — the most important one to get right.
+    BRAND_FADE   = 45   # same as TITLE_FADE so brand appears together (~1.5s) - how long "द Thoughts Within" takes to fade in at the bottom.
+    BRAND_HOLD   = 0   # not needed anymore                            (~2.0s) - how long the brand stays visible before the video ends.
+    
     frames_dir = os.path.join(tmpdir, "frames")
     os.makedirs(frames_dir, exist_ok=True)
     frame_idx = 0
@@ -425,41 +426,30 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
         img.save(os.path.join(frames_dir, f"frame_{frame_idx:06d}.jpg"), "JPEG", quality=85)
         frame_idx += 1
 
-    def frame(title_a, stanza_a, stanza_off, brand_a):
-        return draw_frame(bg_photo, panel_theme, layout, lines, poem_title,
-                          title_a, stanza_a, stanza_off, brand_a)
+    def frame(ta, sa, so, ba):
+        return draw_frame(bg_photo, panel_theme, layout, lines, poem_title, ta, sa, so, ba)
 
-    # Phase 1: Panel + title fade in
+    # Phase 1: Panel + title + brand fade in together
     for f in range(TITLE_FADE):
         t = ease_out((f + 1) / TITLE_FADE)
-        emit(frame(int(255 * t), 0, SLIDE_PX, 0))
-
-    # Phase 2: Title holds alone
-    title_frame = frame(255, 0, SLIDE_PX, 0)
+        emit(frame(int(255 * t), 0, 0, int(255 * t)))
+    
+    # Phase 2: Title + brand hold alone
+    f_title = frame(255, 0, 0, 255)
     for _ in range(TITLE_HOLD):
-        emit(title_frame)
-
-    # Phase 3: Entire stanza slides up + fades in simultaneously
+        emit(f_title)
+    
+    # Phase 3: Poem fades in slowly, no movement
     for f in range(STANZA_TRANS):
-        t      = ease_out((f + 1) / STANZA_TRANS)
-        offset = int(SLIDE_PX * (1 - t))   # 60 → 0
-        alpha  = int(255 * t)
-        emit(frame(255, alpha, offset, 0))
-
-    # Phase 4: Full stanza holds
-    hold_frame = frame(255, 255, 0, 0)
+        t = ease_out((f + 1) / STANZA_TRANS)
+        emit(frame(255, int(255 * t), 0, 255))
+    
+    # Phase 4: Everything holds
+    f_hold = frame(255, 255, 0, 255)
     for _ in range(STANZA_HOLD):
-        emit(hold_frame)
-
-    # Phase 5: Brand fades in
-    for f in range(BRAND_FADE):
-        t = ease_out((f + 1) / BRAND_FADE)
-        emit(frame(255, 255, 0, int(255 * t)))
-
-    # Phase 6: Brand holds
-    brand_frame = frame(255, 255, 0, 255)
-    for _ in range(BRAND_HOLD):
-        emit(brand_frame)
+        emit(f_hold)
+    
+    # Phases 5 + 6 removed — brand visible from start
 
     total_frames   = frame_idx
     total_duration = round(total_frames / FPS, 3)
@@ -470,31 +460,26 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
     if music_path and os.path.exists(music_path):
         cmd = [
             "ffmpeg", "-y",
-            "-framerate", str(FPS),
-            "-i", frames_pattern,
-            "-stream_loop", "-1",
-            "-i", music_path,
+            "-framerate", str(FPS), "-i", frames_pattern,
+            "-stream_loop", "-1", "-i", music_path,
             "-map", "0:v:0", "-map", "1:a:0",
             "-c:v", "libx264", "-profile:v", "high", "-level", "4.0",
             "-preset", "fast", "-b:v", "3500k", "-maxrate", "4000k",
             "-bufsize", "8000k", "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-ar", "44100",
-            "-t", str(total_duration), "-movflags", "+faststart",
-            output_path
+            "-t", str(total_duration), "-movflags", "+faststart", output_path
         ]
     else:
         cmd = [
             "ffmpeg", "-y",
-            "-framerate", str(FPS),
-            "-i", frames_pattern,
+            "-framerate", str(FPS), "-i", frames_pattern,
             "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
             "-map", "0:v:0", "-map", "1:a:0",
             "-c:v", "libx264", "-profile:v", "high", "-level", "4.0",
             "-preset", "fast", "-b:v", "3500k", "-maxrate", "4000k",
             "-bufsize", "8000k", "-pix_fmt", "yuv420p",
             "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-ar", "44100",
-            "-t", str(total_duration), "-movflags", "+faststart",
-            output_path
+            "-t", str(total_duration), "-movflags", "+faststart", output_path
         ]
 
     print("Running FFmpeg...")
@@ -536,7 +521,7 @@ def upload_video_to_cloudinary(video_path):
 
 
 # ============================================================
-# POST REEL TO INSTAGRAM  (hashtags go to first comment)
+# POST REEL TO INSTAGRAM
 # ============================================================
 def post_reel_to_instagram(video_url, caption):
     print("Posting to Instagram...")
@@ -577,15 +562,14 @@ def post_reel_to_instagram(video_url, caption):
     media_id = pub["id"]
     print(f"Reel posted! ID: {media_id}")
 
-    # Post hashtags as first comment
-    comment_result = requests.post(
+    comment = requests.post(
         f"https://graph.facebook.com/v18.0/{media_id}/comments",
         data={"message": HASHTAGS, "access_token": PAGE_ACCESS_TOKEN}
     ).json()
-    if "id" in comment_result:
+    if "id" in comment:
         print("Hashtags posted as first comment")
     else:
-        print(f"First comment failed (non-critical): {comment_result}")
+        print(f"First comment failed (non-critical): {comment}")
 
     return media_id
 
@@ -615,7 +599,6 @@ def main():
     if music_path:
         print(f"Music: {os.path.basename(music_path)}")
 
-    # Clean caption — no hashtags (they go in first comment)
     caption = f"𝘼 𝙫𝙚𝙧𝙨𝙚 𝙛𝙧𝙤𝙢 '{title}'\n\n"
     if meaning:
         caption += f"✦ {meaning}\n\n"
