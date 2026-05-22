@@ -54,48 +54,48 @@ PHOTO_THEMES = [
 COPY_PAIRS = [
     (
         "शोर में भी\nएक आवाज़ थी मेरी",
-        "I began writing to find calm in the noise.\n\nMaybe you'll find yours here too. 🔗 Link below"
+        "I began writing to find calm in the noise.\n\nMaybe you'll find yours here too. 🔗 Link in bio"
     ),
     (
-        "रुकना भी\nज़रूरी होता है",
-        "In a world moving too fast, this is your pause.\n\nद Thoughts Within — link below 🌿"
+        "कभी कभी रुकना भी\nज़रूरी होता है",
+        "In a world moving too fast, this is your pause.\n\nद Thoughts Within — link in bio 🌿"
     ),
     (
-        "बिखरे ख़यालों को\nयहाँ घर मिला",
-        "Scattered thoughts. Quiet reflections. A place to slow down.\n\nJoin us — link below 📖"
+        "मेरे बिखरे ख़यालों को\nयहाँ घर मिला",
+        "Scattered thoughts. Quiet reflections. A place to slow down.\n\nJoin us — link in bio 📖"
     ),
     (
-        "अनकहा भी\nकहीं लिखा होता है",
-        "What you couldn't say out loud — it's written here.\n\nFollow @the.thoughtswithin 🖊️"
+        "अक्सर अनकहा भी\nकहीं लिखा होता है",
+        "What you couldn't say out loud — it's written here.\n\nFollow @_thethoughtswithin 🖊️"
     ),
     (
-        "तुम्हारे जज़्बात भी\nइन्हीं शब्दों में हैं",
-        "These words carry feelings you might recognize too — calm, hope, fear, meaning.\n\nLink below 🌸"
+        "शायद तुम्हारे जज़्बात भी\nइन्हीं शब्दों में मिलें",
+        "These words carry feelings you might recognize too — calm, hope, fear, meaning.\n\nLink in bio 🌸"
     ),
     (
-        "सवालों के साथ\nबैठना सीखा",
-        "I learned it's okay to be uncertain. Poetry taught me that.\n\nRead more — link below 🌿"
+        "सवालों के साथ\n मैंने बैठना सीखा",
+        "I learned it's okay to be uncertain. Poetry taught me that.\n\nRead more — link in bio 🌿"
     ),
     (
-        "छोटे लम्हों में\nबड़े मतलब छुपे हैं",
+        "इन छोटे लम्हों में भी\nबड़े मतलब छुपे हैं",
         "Simple moments can hold meaning — if you pause long enough to notice.\n\nद Thoughts Within 📖"
     ),
     (
         "जो तुम सोचते हो,\nमैंने लिखा है",
-        "Started as scattered thoughts scribbled at unexpected times.\n\nNow shared for the connection that comes from noticing together. \n\n🔗 Link below"
+        "Started as scattered thoughts scribbled at unexpected times.\n\nNow shared for the connection that comes from noticing together. \n\n🔗 Link in bio"
     ),
     (
-        "कुछ बातें\nसमझनी नहीं,\nमहसूस करनी होती हैं",
+        "कुछ बातें\nसमझनी नहीं,\nमहसूस की जाती हैं",
         "Not every feeling asks to be explained.\n\nSome just ask you to pause. 🌙"
     ),
     (
-        "भीतर का शोर\nकभी-कभी\nशब्द बन जाता है",
+        "भीतर का शोर\nअक्सर\nशब्द बन गया",
         "For all the thoughts that never found a voice.\n\nMaybe they'll find one here. ✍️"
     ),
         
     (
         "हर कोई\nकुछ छुपाकर जी रहा है",
-        "Poetry has a way of finding the hidden parts of us.\n\nLink below 📖"
+        "Poetry has a way of finding the hidden parts of us.\n\nLink in bio 📖"
     ),
         
     (
@@ -109,13 +109,13 @@ COPY_PAIRS = [
     ),
         
     (
-        "कभी खुद को\nभी पढ़ लिया करो",
+        "मैंने खुद को पढ़ा\nऔर हर बार\nकुछ नया समझ आया",
         "The deepest words are often the ones we avoid.\n\nद Thoughts Within 🔗"
     ),
         
     (
         "थोड़ा ठहरना\nभी ज़रूरी है",
-        "A quiet corner for heavy hearts and thoughtful minds.\n\nLink below 🌙"
+        "A quiet corner for heavy hearts and thoughtful minds.\n\n@_thethoughtswithin 🌙"
     ),
         
     (
@@ -130,8 +130,8 @@ COPY_PAIRS = [
     ),
         
     (
-        "जो कह नहीं पाए,\nवो लिख दिया",
-        "Sometimes writing is just another form of surviving.\n\nLink below 🌿"
+        "जो कह नहीं पाया,\nवो लिख दिया",
+        "Sometimes writing is just another form of surviving.\n\nLink in bio 🌿"
     ),
         
     (
@@ -140,8 +140,8 @@ COPY_PAIRS = [
     ),
         
     (
-        "कुछ एहसास\nवक़्त से भी पुराने",
-        "Poetry holds the feelings time couldn't erase.\n\nRead more 🔗"
+        "यहाँ छुपे हैं कुछ एहसास\nजो\nवक़्त से भी पुराने हैं",
+        "Poetry holds the feelings time couldn't erase.\n\nRead more. Link in bio 🔗"
     ),
         
 ]
