@@ -26,13 +26,12 @@ UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "")
 
 SHEET_ID = "1Rh_LmGQ9khrYX-9vBh9SkK9ygS-j0LcjQig65TS7DLI"
 SHEET_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
-MEANINGS_CSV_URL = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=1"
 MUSIC_FOLDER = "music"
 REEL_HISTORY_FILE = "reel_history.json"
 
-VIDEO_WIDTH = 1080
+VIDEO_WIDTH  = 1080
 VIDEO_HEIGHT = 1920
-FPS = 30
+FPS          = 30
 
 HASHTAGS = "#hindi #hindikavita #hindishayari #poetry #poem #indianpoetry #thoughtswithin #shayari #kavita #hindipoetry #poetrycommunity #wordsmith #hindiwriters #reels #poetryreels"
 
@@ -53,13 +52,16 @@ PHOTO_QUERIES = [
 
 # Panel themes: (fill_rgba, title_color, stanza_color, divider_color, brand_color)
 PANEL_THEMES = [
-    ((255, 252, 245, 235), (120, 60,  20),  (60,  35, 10),  (180, 140, 100), (140, 100, 60)),   # warm cream
-    ((245, 248, 255, 230), (30,  55, 110),  (20,  40, 80),  (110, 140, 190), (80,  110, 160)),   # cool blue
-    ((245, 255, 248, 230), (25,  80,  45),  (18,  60, 35),  (100, 170, 120), (70,  140, 90)),    # sage green
-    ((255, 248, 248, 230), (110, 25,  25),  (80,  18, 18),  (200, 120, 120), (160, 80,  80)),    # rose blush
-    ((252, 252, 252, 235), (50,  50,  50),  (25,  25, 25),  (160, 160, 160), (110, 110, 110)),   # clean white
-    ((255, 250, 235, 232), (100, 65,  10),  (70,  45, 8),   (190, 155, 80),  (150, 110, 45)),    # golden parchment
+    ((255, 252, 245, 235), (120, 60,  20),  (60,  35, 10),  (180, 140, 100), (140, 100, 60)),
+    ((245, 248, 255, 230), (30,  55, 110),  (20,  40, 80),  (110, 140, 190), (80,  110, 160)),
+    ((245, 255, 248, 230), (25,  80,  45),  (18,  60, 35),  (100, 170, 120), (70,  140, 90)),
+    ((255, 248, 248, 230), (110, 25,  25),  (80,  18, 18),  (200, 120, 120), (160, 80,  80)),
+    ((252, 252, 252, 235), (50,  50,  50),  (25,  25, 25),  (160, 160, 160), (110, 110, 110)),
+    ((255, 250, 235, 232), (100, 65,  10),  (70,  45, 8),   (190, 155, 80),  (150, 110, 45)),
 ]
+
+# Fade-in duration for each line (frames)
+FADE_FRAMES = 8   # ~0.27s fade per line at 30fps
 
 
 # ============================================================
@@ -113,11 +115,10 @@ def fetch_meanings():
         try:
             response = requests.get(url, timeout=15)
             response.encoding = "utf-8"
-            print(f"  URL: {url[-60:]} | status: {response.status_code} | size: {len(response.text)}")
+            print(f"  status: {response.status_code} | size: {len(response.text)}")
             if response.status_code != 200 or len(response.text) < 20:
                 continue
-            first_line = response.text.split("\n")[0]
-            print(f"  Headers: {first_line[:150]}")
+            print(f"  Headers: {response.text.split(chr(10))[0][:150]}")
             reader = csv.DictReader(StringIO(response.text))
             meanings = {}
             for row in reader:
@@ -126,12 +127,12 @@ def fetch_meanings():
                 meaning = row.get("meaning", "").strip()
                 if title and num and meaning:
                     meanings[(title, num)] = meaning
-            print(f"  Parsed {len(meanings)} meanings from this URL")
+            print(f"  Parsed {len(meanings)} meanings")
             if meanings:
                 return meanings
         except Exception as e:
             print(f"  Error: {e}")
-    print("WARNING: No meanings found in any URL")
+    print("WARNING: No meanings found")
     return {}
 
 
@@ -150,25 +151,44 @@ def pick_random_stanza(all_stanzas):
 # FONT HELPERS
 # ============================================================
 def find_hindi_font(bold=False):
+    # First: check the font we download in the workflow
+    direct_paths = [
+        os.path.expanduser("~/.local/share/fonts/NotoSansDevanagari.ttf"),
+        "/usr/share/fonts/NotoSansDevanagari.ttf",
+    ]
+    for p in direct_paths:
+        if os.path.exists(p):
+            print(f"Using font: {p}")
+            return p
+
+    # Second: fc-list
     try:
         result = subprocess.run(
             ["fc-list", ":lang=hi", "--format=%{file}\n"],
             capture_output=True, text=True
         )
         paths = [p.strip() for p in result.stdout.strip().splitlines() if p.strip()]
+        print(f"fc-list found {len(paths)} Hindi fonts")
         if bold:
-            bold_paths = [p for p in paths if "Bold" in p and "Devanagari" in p and "Condensed" not in p]
+            bold_paths = [p for p in paths if "Bold" in p and "Condensed" not in p]
             if bold_paths:
                 return bold_paths[0]
-        regular = [p for p in paths if "Regular" in p and "Devanagari" in p and "Condensed" not in p]
+        regular = [p for p in paths if "Regular" in p and "Condensed" not in p]
         if regular:
             return regular[0]
         if paths:
             return paths[0]
     except Exception as e:
         print(f"fc-list error: {e}")
-    fallback = "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf" if bold else "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf"
-    return fallback if os.path.exists(fallback) else None
+
+    # Third: known fallback paths
+    for p in [
+        "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Bold.ttf",
+        "/usr/share/fonts/truetype/noto/NotoSansDevanagari-Regular.ttf",
+    ]:
+        if os.path.exists(p):
+            return p
+    return None
 
 
 def find_latin_font():
@@ -183,11 +203,11 @@ def find_latin_font():
 
 
 # ============================================================
-# FETCH BACKGROUND PHOTO FROM UNSPLASH API
+# FETCH BACKGROUND PHOTO
 # ============================================================
 def fetch_background_photo():
     query = random.choice(PHOTO_QUERIES)
-    print(f"Fetching Unsplash photo: '{query}'")
+    print(f"Fetching photo: '{query}'")
 
     if UNSPLASH_ACCESS_KEY:
         try:
@@ -196,33 +216,33 @@ def fetch_background_photo():
                 f"?query={requests.utils.quote(query)}"
                 f"&orientation=portrait&content_filter=high"
             )
-            headers = {"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"}
-            resp = requests.get(api_url, headers=headers, timeout=15)
+            resp = requests.get(api_url,
+                                headers={"Authorization": f"Client-ID {UNSPLASH_ACCESS_KEY}"},
+                                timeout=15)
             if resp.status_code == 200:
-                data = resp.json()
-                photo_url = data["urls"].get("regular") or data["urls"].get("full")
+                photo_url = resp.json()["urls"].get("regular")
                 img_resp = requests.get(photo_url, timeout=20)
                 if img_resp.status_code == 200:
                     img = Image.open(BytesIO(img_resp.content)).convert("RGB")
                     img = img.resize((VIDEO_WIDTH, VIDEO_HEIGHT), Image.LANCZOS)
-                    print(f"Photo loaded via Unsplash API ({query})")
+                    print(f"Photo: Unsplash ({query})")
                     return img
         except Exception as e:
-            print(f"Unsplash API error: {e}")
+            print(f"Unsplash error: {e}")
 
     try:
         seed = random.randint(1, 500)
-        url = f"https://picsum.photos/seed/{seed}/1080/1920"
-        resp = requests.get(url, timeout=20, allow_redirects=True)
+        resp = requests.get(f"https://picsum.photos/seed/{seed}/1080/1920",
+                            timeout=20, allow_redirects=True)
         if resp.status_code == 200 and len(resp.content) > 10000:
             img = Image.open(BytesIO(resp.content)).convert("RGB")
             img = img.resize((VIDEO_WIDTH, VIDEO_HEIGHT), Image.LANCZOS)
-            print(f"Photo loaded via Picsum (seed {seed})")
+            print(f"Photo: Picsum seed {seed}")
             return img
     except Exception as e:
         print(f"Picsum error: {e}")
 
-    print("Using gradient fallback")
+    print("Photo: gradient fallback")
     img = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT))
     pixels = img.load()
     top, bottom = (28, 18, 45), (65, 38, 90)
@@ -237,12 +257,13 @@ def fetch_background_photo():
 
 
 # ============================================================
-# DRAW A SINGLE FRAME (PERMANENT STRUCTURAL PERSISTENCE)
+# DRAW A SINGLE FRAME
+# lines_alpha: dict of {line_index: alpha 0-255} for per-line fade
+# show_brand: bool
 # ============================================================
-def draw_frame(lines_visible, all_lines, poem_title, show_brand,
+def draw_frame(lines_alpha, all_lines, poem_title, title_alpha, show_brand,
                hindi_font_path, latin_font_path, bg_photo, panel_theme):
 
-    # Background frame generation
     img = bg_photo.copy()
     dark_overlay = Image.new("RGB", (VIDEO_WIDTH, VIDEO_HEIGHT), (0, 0, 0))
     img = Image.blend(img, dark_overlay, alpha=0.40)
@@ -251,34 +272,27 @@ def draw_frame(lines_visible, all_lines, poem_title, show_brand,
     draw = ImageDraw.Draw(img, "RGBA")
     panel_fill, title_color, stanza_color, divider_color, brand_color = panel_theme
 
-    # Typography properties
-    font_stanza = ImageFont.truetype(hindi_font_path, 54) if hindi_font_path else ImageFont.load_default()
-    font_title  = ImageFont.truetype(hindi_font_path, 46) if hindi_font_path else ImageFont.load_default()
-    font_brand  = ImageFont.truetype(latin_font_path, 32) if latin_font_path else font_title
+    font_stanza  = ImageFont.truetype(hindi_font_path, 54) if hindi_font_path else ImageFont.load_default()
+    font_title   = ImageFont.truetype(hindi_font_path, 46) if hindi_font_path else ImageFont.load_default()
+    font_brand   = ImageFont.truetype(latin_font_path, 32) if latin_font_path else font_title
     font_brand_h = ImageFont.truetype(hindi_font_path, 32) if hindi_font_path else font_title
 
-    cx = VIDEO_WIDTH // 2
-    SIDE_MARGIN      = 90     
-    PAD_TOP          = 80     # Breathable spacing top padding
-    PAD_BOTTOM       = 80     # Breathable spacing bottom padding
-    LINE_GAP         = 32     # Increased gap for stanzas to read easily
+    cx        = VIDEO_WIDTH // 2
+    SIDE_MARGIN = 90
+    PAD_TOP     = 80
+    PAD_BOTTOM  = 80
+    LINE_GAP    = 32
 
     dummy = ImageDraw.Draw(Image.new("RGB", (10, 10)))
-
     title_bbox = dummy.textbbox((0, 0), poem_title, font=font_title)
     title_h = title_bbox[3] - title_bbox[1]
-
     sample_bbox = dummy.textbbox((0, 0), "क", font=font_stanza)
     line_h = sample_bbox[3] - sample_bbox[1]
-
-    divider_area = 54   
-    stanza_block_h = len(all_lines) * line_h + (len(all_lines) - 1) * LINE_GAP
-
-    # Brand text measurements (Locking total container size to always account for footer spacing)
     b_bbox = dummy.textbbox((0, 0), "Thoughts Within", font=font_brand)
-    brand_block_h = divider_area + (b_bbox[3] - b_bbox[1]) + 10
+    brand_block_h = 54 + (b_bbox[3] - b_bbox[1]) + 10
 
-    total_content_h = title_h + divider_area + stanza_block_h + brand_block_h
+    stanza_block_h = len(all_lines) * line_h + (len(all_lines) - 1) * LINE_GAP
+    total_content_h = title_h + 54 + stanza_block_h + brand_block_h
     panel_w = VIDEO_WIDTH - 2 * SIDE_MARGIN
     panel_h = total_content_h + PAD_TOP + PAD_BOTTOM
 
@@ -287,60 +301,59 @@ def draw_frame(lines_visible, all_lines, poem_title, show_brand,
     panel_x1 = panel_x0 + panel_w
     panel_y1 = panel_y0 + panel_h
 
-    # Render fixed card container
-    draw.rounded_rectangle(
-        [(panel_x0, panel_y0), (panel_x1, panel_y1)],
-        radius=32,
-        fill=panel_fill
-    )
-    draw.rounded_rectangle(
-        [(panel_x0, panel_y0), (panel_x1, panel_y1)],
-        radius=32,
-        outline=(*divider_color, 100),
-        width=2
-    )
+    # Panel fades in with title_alpha
+    panel_a = title_alpha
+    draw.rounded_rectangle([(panel_x0, panel_y0), (panel_x1, panel_y1)],
+                           radius=32, fill=(*panel_fill[:3], int(panel_fill[3] * panel_a / 255)))
+    draw.rounded_rectangle([(panel_x0, panel_y0), (panel_x1, panel_y1)],
+                           radius=32, outline=(*divider_color, int(100 * panel_a / 255)), width=2)
 
-    # Title is drawn on every single frame
+    # Title
     y = panel_y0 + PAD_TOP
     tb = draw.textbbox((0, 0), poem_title, font=font_title)
     draw.text(((VIDEO_WIDTH - (tb[2] - tb[0])) // 2, y),
-              poem_title, font=font_title, fill=(*title_color, 255))
-    y += title_h
+              poem_title, font=font_title, fill=(*title_color, title_alpha))
+    y += title_h + 20
 
-    # Top divider drawn on every single frame
-    y += 20
-    draw.line([(cx - 90, y), (cx + 90, y)], fill=(*divider_color, 160), width=1)
-    draw.ellipse([(cx - 4, y - 3), (cx + 4, y + 3)], fill=(*divider_color, 200))
+    # Divider under title
+    draw.line([(cx - 90, y), (cx + 90, y)],
+              fill=(*divider_color, int(160 * panel_a / 255)), width=1)
+    draw.ellipse([(cx - 4, y - 3), (cx + 4, y + 3)],
+                 fill=(*divider_color, int(200 * panel_a / 255)))
     y += 34
 
-    # Render lines sequentially
+    # Stanza lines — each fades in independently
     for i, line in enumerate(all_lines):
-        if i < lines_visible:
+        alpha = lines_alpha.get(i, 0)
+        if alpha > 0:
             lb = draw.textbbox((0, 0), line, font=font_stanza)
             lw = lb[2] - lb[0]
             lx = (VIDEO_WIDTH - lw) // 2
-            is_current = (i == lines_visible - 1)
-            color = (*title_color, 255) if is_current else (*stanza_color, 220)
-            draw.text((lx, y), line, font=font_stanza, fill=color)
-        
-        # Keep layout spacing perfectly consistent even if line isn't showing yet
+            # Most recently revealed line uses title color, rest use stanza color
+            is_latest = (i == max((k for k, v in lines_alpha.items() if v > 0), default=-1))
+            color = title_color if is_latest else stanza_color
+            draw.text((lx, y), line, font=font_stanza, fill=(*color, alpha))
         y += line_h + LINE_GAP
 
-    # Render footer elements (Controlled explicitly by your original state conditions)
+    # Brand
     if show_brand:
-        y += 4
-        draw.line([(cx - 80, y), (cx + 80, y)], fill=(*divider_color, 120), width=1)
-        draw.ellipse([(cx - 3, y - 3), (cx + 3, y + 3)], fill=(*divider_color, 160))
-        y += 22
-
-        hindi_part = "द "
-        latin_part = "Thoughts Within"
-        hb = draw.textbbox((0, 0), hindi_part, font=font_brand_h)
-        lb2 = draw.textbbox((0, 0), latin_part, font=font_brand)
-        total_w = (hb[2] - hb[0]) + (lb2[2] - lb2[0])
-        bx = (VIDEO_WIDTH - total_w) // 2
-        draw.text((bx, y), hindi_part, font=font_brand_h, fill=(*brand_color, 210))
-        draw.text((bx + (hb[2] - hb[0]), y), latin_part, font=font_brand, fill=(*brand_color, 210))
+        brand_alpha = lines_alpha.get("brand", 0)
+        if brand_alpha > 0:
+            draw.line([(cx - 80, y + 4), (cx + 80, y + 4)],
+                      fill=(*divider_color, int(120 * brand_alpha / 255)), width=1)
+            draw.ellipse([(cx - 3, y + 1), (cx + 3, y + 7)],
+                         fill=(*divider_color, int(160 * brand_alpha / 255)))
+            y += 26
+            hindi_part = "द "
+            latin_part = "Thoughts Within"
+            hb  = draw.textbbox((0, 0), hindi_part, font=font_brand_h)
+            lb2 = draw.textbbox((0, 0), latin_part, font=font_brand)
+            total_w = (hb[2] - hb[0]) + (lb2[2] - lb2[0])
+            bx = (VIDEO_WIDTH - total_w) // 2
+            draw.text((bx, y), hindi_part,
+                      font=font_brand_h, fill=(*brand_color, brand_alpha))
+            draw.text((bx + (hb[2] - hb[0]), y), latin_part,
+                      font=font_brand, fill=(*brand_color, brand_alpha))
 
     return img
 
@@ -351,76 +364,95 @@ def draw_frame(lines_visible, all_lines, poem_title, show_brand,
 def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
     print("Creating reel video...")
 
-    hindi_font = find_hindi_font(bold=True)
-    latin_font = find_latin_font()
-    bg_photo   = fetch_background_photo()
+    hindi_font  = find_hindi_font(bold=True)
+    latin_font  = find_latin_font()
+    bg_photo    = fetch_background_photo()
     panel_theme = random.choice(PANEL_THEMES)
 
     lines = [l.strip() for l in stanza_text.split("\n") if l.strip()]
-    print(f"Animating {len(lines)} lines with panel theme index {PANEL_THEMES.index(panel_theme)}")
+    print(f"Lines: {len(lines)}")
 
-    # Restored original strict timing configs
-    HOLD_BEFORE    = 1.5
-    SECS_PER_LINE  = 2.5
-    HOLD_AFTER     = 3.0
-    BRAND_DURATION = 2.5
+    # ---- Timing ----
+    TITLE_FADE_FRAMES  = 10   # panel + title fade in (~0.33s)
+    TITLE_HOLD_FRAMES  = 20   # title sits alone briefly (~0.67s)
+    LINE_FADE_FRAMES   = 8    # each line fades in (~0.27s)
+    LINE_HOLD_FRAMES   = 7    # each line holds after fade (~0.23s) → ~0.5s per line total
+    ALL_HOLD_FRAMES    = 60   # full stanza visible hold (2s)
+    BRAND_FADE_FRAMES  = 10
+    BRAND_HOLD_FRAMES  = 50
 
     frames_dir = os.path.join(tmpdir, "frames")
     os.makedirs(frames_dir, exist_ok=True)
     frame_idx = 0
 
-    def save_frames(img, count):
+    def emit(img):
         nonlocal frame_idx
-        for _ in range(count):
-            img.save(os.path.join(frames_dir, f"frame_{frame_idx:06d}.jpg"),
-                     "JPEG", quality=85)
-            frame_idx += 1
+        img.save(os.path.join(frames_dir, f"frame_{frame_idx:06d}.jpg"), "JPEG", quality=85)
+        frame_idx += 1
 
-    # Stage 0: Keep branding hidden initially to match original script layout conditional structure
-    save_frames(draw_frame(0, lines, poem_title, False, hindi_font, latin_font, bg_photo, panel_theme),
-                int(HOLD_BEFORE * FPS))
+    def make(lines_alpha, title_alpha, show_brand=False):
+        return draw_frame(lines_alpha, lines, poem_title, title_alpha,
+                          show_brand, hindi_font, latin_font, bg_photo, panel_theme)
 
-    # Stage 1: Reveal poem lines sequentially
-    for i in range(1, len(lines) + 1):
-        save_frames(draw_frame(i, lines, poem_title, False, hindi_font, latin_font, bg_photo, panel_theme),
-                    int(SECS_PER_LINE * FPS))
+    # Phase 1: Panel + title fade in
+    for f in range(TITLE_FADE_FRAMES):
+        alpha = int(255 * (f + 1) / TITLE_FADE_FRAMES)
+        emit(make({}, alpha))
 
-    # Stage 2: Final showcase hold
-    save_frames(draw_frame(len(lines), lines, poem_title, False, hindi_font, latin_font, bg_photo, panel_theme),
-                int(HOLD_AFTER * FPS))
+    # Phase 2: Title holds alone
+    title_frame = make({}, 255)
+    for _ in range(TITLE_HOLD_FRAMES):
+        emit(title_frame)
 
-    # Stage 3: Explicitly restore final state branding frame duration block
-    save_frames(draw_frame(len(lines), lines, poem_title, True, hindi_font, latin_font, bg_photo, panel_theme),
-                int(BRAND_DURATION * FPS))
+    # Phase 3: Lines appear one by one with fade
+    revealed = {}
+    for i in range(len(lines)):
+        # Fade in this line
+        for f in range(LINE_FADE_FRAMES):
+            alpha = int(255 * (f + 1) / LINE_FADE_FRAMES)
+            revealed[i] = alpha
+            emit(make(dict(revealed), 255))
+        revealed[i] = 255
+        # Hold briefly
+        hold_frame = make(dict(revealed), 255)
+        for _ in range(LINE_HOLD_FRAMES):
+            emit(hold_frame)
 
-    total_duration = HOLD_BEFORE + (len(lines) * SECS_PER_LINE) + HOLD_AFTER + BRAND_DURATION
-    print(f"Total duration: {total_duration:.1f}s | Frames: {frame_idx}")
+    # Phase 4: All lines visible — hold
+    full_frame = make(dict(revealed), 255)
+    for _ in range(ALL_HOLD_FRAMES):
+        emit(full_frame)
+
+    # Phase 5: Brand fades in
+    for f in range(BRAND_FADE_FRAMES):
+        alpha = int(255 * (f + 1) / BRAND_FADE_FRAMES)
+        revealed["brand"] = alpha
+        emit(make(dict(revealed), 255, show_brand=True))
+    revealed["brand"] = 255
+    brand_frame = make(dict(revealed), 255, show_brand=True)
+    for _ in range(BRAND_HOLD_FRAMES):
+        emit(brand_frame)
+
+    total_frames   = frame_idx
+    total_duration = round(total_frames / FPS, 3)
+    print(f"Total: {total_duration}s | {total_frames} frames")
 
     frames_pattern = os.path.join(frames_dir, "frame_%06d.jpg")
-    total_dur_str = str(round(total_duration, 3))
 
     if music_path and os.path.exists(music_path):
         cmd = [
             "ffmpeg", "-y",
             "-framerate", str(FPS),
-            "-i", frames_pattern,           
-            "-stream_loop", "-1",           
-            "-i", music_path,               
+            "-i", frames_pattern,
+            "-stream_loop", "-1",
+            "-i", music_path,
             "-map", "0:v:0",
             "-map", "1:a:0",
-            "-c:v", "libx264",
-            "-profile:v", "high",
-            "-level", "4.0",
-            "-preset", "fast",
-            "-b:v", "3500k",
-            "-maxrate", "4000k",
-            "-bufsize", "8000k",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-ac", "2",
-            "-ar", "44100",
-            "-t", total_dur_str,            
+            "-c:v", "libx264", "-profile:v", "high", "-level", "4.0",
+            "-preset", "fast", "-b:v", "3500k", "-maxrate", "4000k",
+            "-bufsize", "8000k", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-ar", "44100",
+            "-t", str(total_duration),
             "-movflags", "+faststart",
             output_path
         ]
@@ -429,23 +461,13 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
             "ffmpeg", "-y",
             "-framerate", str(FPS),
             "-i", frames_pattern,
-            "-f", "lavfi",
-            "-i", f"anullsrc=channel_layout=stereo:sample_rate=44100",
-            "-map", "0:v:0",
-            "-map", "1:a:0",
-            "-c:v", "libx264",
-            "-profile:v", "high",
-            "-level", "4.0",
-            "-preset", "fast",
-            "-b:v", "3500k",
-            "-maxrate", "4000k",
-            "-bufsize", "8000k",
-            "-pix_fmt", "yuv420p",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-ac", "2",
-            "-ar", "44100",
-            "-t", total_dur_str,
+            "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100",
+            "-map", "0:v:0", "-map", "1:a:0",
+            "-c:v", "libx264", "-profile:v", "high", "-level", "4.0",
+            "-preset", "fast", "-b:v", "3500k", "-maxrate", "4000k",
+            "-bufsize", "8000k", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-ar", "44100",
+            "-t", str(total_duration),
             "-movflags", "+faststart",
             output_path
         ]
@@ -457,7 +479,7 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
         raise Exception("FFmpeg failed")
 
     size_mb = os.path.getsize(output_path) / (1024 * 1024)
-    print(f"Video created: {size_mb:.1f} MB")
+    print(f"Video: {size_mb:.1f} MB")
     return output_path
 
 
@@ -465,30 +487,25 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
 # UPLOAD TO CLOUDINARY
 # ============================================================
 def upload_video_to_cloudinary(video_path):
-    print("Uploading video to Cloudinary...")
-    import hashlib
-    import time as time_mod
+    print("Uploading to Cloudinary...")
+    import hashlib, time as time_mod
 
-    timestamp = str(int(time_mod.time()))
-    public_id = f"thoughtswithin_reel_{timestamp}"
-    params_to_sign = f"public_id={public_id}&timestamp={timestamp}"
-    signature = hashlib.sha1(
-        f"{params_to_sign}{CLOUDINARY_API_SECRET}".encode()
-    ).hexdigest()
+    timestamp  = str(int(time_mod.time()))
+    public_id  = f"thoughtswithin_reel_{timestamp}"
+    sig_str    = f"public_id={public_id}&timestamp={timestamp}{CLOUDINARY_API_SECRET}"
+    signature  = hashlib.sha1(sig_str.encode()).hexdigest()
 
-    url = f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/video/upload"
     with open(video_path, "rb") as f:
-        response = requests.post(url, data={
-            "api_key": CLOUDINARY_API_KEY,
-            "timestamp": timestamp,
-            "public_id": public_id,
-            "signature": signature,
-        }, files={"file": f}, timeout=180)
-
+        response = requests.post(
+            f"https://api.cloudinary.com/v1_1/{CLOUDINARY_CLOUD_NAME}/video/upload",
+            data={"api_key": CLOUDINARY_API_KEY, "timestamp": timestamp,
+                  "public_id": public_id, "signature": signature},
+            files={"file": f}, timeout=180
+        )
     result = response.json()
     if "secure_url" not in result:
-        raise Exception(f"Cloudinary upload failed: {result}")
-    print(f"Video URL: {result['secure_url']}")
+        raise Exception(f"Cloudinary failed: {result}")
+    print(f"Uploaded: {result['secure_url']}")
     return result["secure_url"]
 
 
@@ -496,42 +513,42 @@ def upload_video_to_cloudinary(video_path):
 # POST REEL TO INSTAGRAM
 # ============================================================
 def post_reel_to_instagram(video_url, caption):
-    print("Posting Reel to Instagram...")
-    create_url = f"https://graph.facebook.com/v18.0/{INSTAGRAM_BUSINESS_ACCOUNT_ID}/media"
-    response = requests.post(create_url, data={
-        "media_type": "REELS",
-        "video_url": video_url,
-        "caption": caption,
-        "share_to_feed": "true",
-        "access_token": PAGE_ACCESS_TOKEN
-    })
-    result = response.json()
+    print("Posting to Instagram...")
+    result = requests.post(
+        f"https://graph.facebook.com/v18.0/{INSTAGRAM_BUSINESS_ACCOUNT_ID}/media",
+        data={"media_type": "REELS", "video_url": video_url,
+              "caption": caption, "share_to_feed": "true",
+              "access_token": PAGE_ACCESS_TOKEN}
+    ).json()
+
     if "id" not in result:
-        raise Exception(f"Failed to create reel container: {result}")
+        raise Exception(f"Container creation failed: {result}")
 
     container_id = result["id"]
-    print(f"Container created: {container_id} — polling for processing...")
-    for attempt in range(18):
+    print(f"Container: {container_id} — polling...")
+
+    for attempt in range(24):   # up to 4 minutes
         time.sleep(10)
         status = requests.get(
             f"https://graph.facebook.com/v18.0/{container_id}"
             f"?fields=status_code,status&access_token={PAGE_ACCESS_TOKEN}"
         ).json()
         code = status.get("status_code", "")
-        print(f"Attempt {attempt + 1}: {code}")
+        print(f"  [{attempt+1}] {code}")
         if code == "FINISHED":
             break
         elif code == "ERROR":
-            raise Exception(f"Instagram processing failed: {status}")
+            raise Exception(f"Instagram processing error: {status}")
 
-    response = requests.post(
+    result = requests.post(
         f"https://graph.facebook.com/v18.0/{INSTAGRAM_BUSINESS_ACCOUNT_ID}/media_publish",
         data={"creation_id": container_id, "access_token": PAGE_ACCESS_TOKEN}
     ).json()
-    if "id" not in response:
-        raise Exception(f"Failed to publish reel: {response}")
-    print(f"Reel posted! ID: {response['id']}")
-    return response["id"]
+
+    if "id" not in result:
+        raise Exception(f"Publish failed: {result}")
+    print(f"Reel posted! ID: {result['id']}")
+    return result["id"]
 
 
 # ============================================================
@@ -542,30 +559,26 @@ def main():
 
     all_stanzas = fetch_all_stanzas()
     if not all_stanzas:
-        raise Exception("No stanzas found in Google Sheet.")
+        raise Exception("No stanzas found.")
 
     meanings = fetch_meanings()
     title, stanza_num, stanza = pick_random_stanza(all_stanzas)
-    meaning = meanings.get((title, stanza_num), "") or meanings.get((title, str(int(stanza_num))), "") if stanza_num.isdigit() else meanings.get((title, stanza_num), "")
+
+    meaning = ""
+    if stanza_num.isdigit():
+        meaning = meanings.get((title, stanza_num), "") or meanings.get((title, str(int(stanza_num))), "")
+    else:
+        meaning = meanings.get((title, stanza_num), "")
 
     music_files = glob.glob(os.path.join(MUSIC_FOLDER, "*.mp3"))
-    music_path = random.choice(music_files) if music_files else None
+    music_path  = random.choice(music_files) if music_files else None
     if music_path:
         print(f"Music: {os.path.basename(music_path)}")
 
+    caption = f"𝘼 𝙫𝙚𝙧𝙨𝙚 𝙛𝙧𝙤𝙢 '{title}'\n\n"
     if meaning:
-        caption = (
-            f"𝘼 𝙫𝙚𝙧𝙨𝙚 𝙛𝙧𝙤𝙢 '{title}'\n\n"
-            f"✦ {meaning}\n\n"
-            f"𝘙𝘦𝘢𝘥 𝘵𝘩𝘦 𝘧𝘶𝘭𝘭 𝘱𝘰𝘦𝘮 — 𝘭𝘪𝘯𝘬 𝘪𝘯 𝘣𝘪ο 🔗\n\n"
-            f"{HASHTAGS}"
-        )
-    else:
-        caption = (
-            f"𝘼 𝙫𝙚𝙧𝙨𝙚 𝙛𝙧𝙤𝙢 '{title}'\n\n"
-            f"𝘙𝘦𝘢𝘥 𝘵𝘩𝘦 𝘧𝘶𝘭𝘭 𝘱𝘰𝘦𝘮 — 𝘭𝘪𝘯𝘬 𝘪𝘯 𝘣𝘪ο 🔗\n\n"
-            f"{HASHTAGS}"
-        )
+        caption += f"✦ {meaning}\n\n"
+    caption += f"𝘙𝘦𝘢𝘥 𝘵𝘩𝘦 𝘧𝘶𝘭𝘭 𝘱𝘰𝘦𝘮 — 𝘭𝘪𝘯𝘬 𝘪𝘯 𝘣𝘪𝘰 🔗\n\n{HASHTAGS}"
 
     with tempfile.TemporaryDirectory() as tmpdir:
         video_path = os.path.join(tmpdir, "reel.mp4")
