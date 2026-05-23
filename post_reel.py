@@ -399,15 +399,17 @@ def generate_voiceover(stanza_text, output_path):
 
     print("Generating voiceover via Google Cloud TTS...")
 
-    # Clean up the stanza: join lines with a short pause (comma works well in TTS)
+    # Build SSML: each line separated by a 700ms break so the listener
+    # has space to absorb each line before the next one arrives.
     lines = [l.strip() for l in stanza_text.split("\n") if l.strip()]
-    tts_text = ", ".join(lines)
+    ssml_lines = '<break time="700ms"/>'.join(lines)
+    ssml = f'<speak>{ssml_lines}</speak>'
 
     payload = {
-        "input": {"text": tts_text},
+        "input": {"ssml": ssml},
         "voice": {
             "languageCode": "hi-IN",
-            "name": "hi-IN-Wavenet-D",   # male, neural
+            "name": "hi-IN-Wavenet-B",   # male, neural (D is female despite the name)
             "ssmlGender": "MALE"
         },
         "audioConfig": {
