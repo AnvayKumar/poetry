@@ -6,11 +6,13 @@ import os
 import csv
 import glob
 import json
+import math
 import random
 import time
 import subprocess
 import requests
 import tempfile
+import base64
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from io import StringIO, BytesIO
 
@@ -23,6 +25,7 @@ CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME", "")
 CLOUDINARY_API_KEY = os.environ.get("CLOUDINARY_API_KEY", "")
 CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET", "")
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "")
+GCP_TTS_API_KEY = os.environ.get("GCP_TTS_API_KEY", "")
 
 SHEET_ID = "1Rh_LmGQ9khrYX-9vBh9SkK9ygS-j0LcjQig65TS7DLI"
 SHEET_CSV_URL   = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
@@ -237,23 +240,21 @@ def ease_out(t):
 
 # ============================================================
 # MEASURE LAYOUT
-# Auto-fits font size so the longest line never overflows the panel.
 # ============================================================
 def measure_layout(lines, poem_title, hindi_font, latin_font):
-    SIDE_MARGIN    = 100   # panel left/right from frame edge
-    INNER_PAD_X    = 65    # text margin inside panel each side
-    LINE_GAP       = 46    # breathing room between stanza lines
-    DIVIDER_AREA   = 58    # space for divider + gaps around it
+    SIDE_MARGIN    = 100
+    INNER_PAD_X    = 65
+    LINE_GAP       = 46
+    DIVIDER_AREA   = 58
     BRAND_DIV_AREA = 52
     PAD_TOP        = 90
     PAD_BOTTOM     = 90
 
     panel_w      = VIDEO_WIDTH - 2 * SIDE_MARGIN
-    max_text_w   = panel_w - 2 * INNER_PAD_X   # max width any line can occupy
+    max_text_w   = panel_w - 2 * INNER_PAD_X
 
     dummy = ImageDraw.Draw(Image.new("RGB", (10, 10)))
 
-    # Start at 48px, reduce by 2 until all lines fit
     stanza_size = 48
     while stanza_size >= 26:
         font_test = ImageFont.truetype(hindi_font, stanza_size)
@@ -312,11 +313,6 @@ def measure_layout(lines, poem_title, hindi_font, latin_font):
 
 # ============================================================
 # DRAW FRAME
-#
-#  title_alpha   0-255  panel + title fade
-#  stanza_alpha  0-255  stanza block fade
-#  stanza_offset px     stanza slides UP from this offset to 0
-#  brand_alpha   0-255  brand fade
 # ============================================================
 def draw_frame(bg_photo, panel_theme, layout, lines, poem_title,
                title_alpha, stanza_alpha, stanza_offset, brand_alpha):
@@ -332,7 +328,6 @@ def draw_frame(bg_photo, panel_theme, layout, lines, poem_title,
     ta = title_alpha / 255
     cx = L["cx"]
 
-    # Panel
     draw.rounded_rectangle(
         [(L["panel_x0"], L["panel_y0"]), (L["panel_x1"], L["panel_y1"])],
         radius=32,
@@ -347,20 +342,17 @@ def draw_frame(bg_photo, panel_theme, layout, lines, poem_title,
 
     y = L["panel_y0"] + L["PAD_TOP"]
 
-    # Title
     tx = (VIDEO_WIDTH - L["title_w"]) // 2
     draw.text((tx, y), poem_title,
               font=L["font_title"], fill=(*title_color, title_alpha))
     y += L["title_h"] + 18
 
-    # Divider under title
     draw.line([(cx - 85, y), (cx + 85, y)],
               fill=(*divider_color, int(160 * ta)), width=1)
     draw.ellipse([(cx - 4, y - 3), (cx + 4, y + 3)],
                  fill=(*divider_color, int(200 * ta)))
     y += L["DIVIDER_AREA"] - 18
 
-    # Stanza block — slides up from stanza_offset, fades in
     stanza_y = y + stanza_offset
     for i, line in enumerate(lines):
         if stanza_alpha > 0:
@@ -369,7 +361,6 @@ def draw_frame(bg_photo, panel_theme, layout, lines, poem_title,
                       font=L["font_stanza"], fill=(*stanza_color, stanza_alpha))
         stanza_y += L["line_h"] + L["LINE_GAP"]
 
-    # Brand — positioned from fixed final stanza end (not animated offset)
     y += len(lines) * L["line_h"] + (len(lines) - 1) * L["LINE_GAP"] + L["BRAND_DIV_AREA"]
 
     if brand_alpha > 0:
@@ -394,6 +385,75 @@ def draw_frame(bg_photo, panel_theme, layout, lines, poem_title,
 
 
 # ============================================================
+# GENERATE VOICEOVER via Google Cloud TTS
+# ============================================================
+def generate_voiceover(stanza_text, output_path):
+    """
+    Calls the Google Cloud TTS REST API with hi-IN-Wavenet-D (male, neural).
+    Writes an MP3 to output_path and returns the audio duration in seconds.
+    Falls back gracefully if the API key is missing or the call fails.
+    """
+    if not GCP_TTS_API_KEY:
+        print("GCP_TTS_API_KEY not set — skipping voiceover")
+        return None
+
+    print("Generating voiceover via Google Cloud TTS...")
+
+    # Clean up the stanza: join lines with a short pause (comma works well in TTS)
+    lines = [l.strip() for l in stanza_text.split("\n") if l.strip()]
+    tts_text = ", ".join(lines)
+
+    payload = {
+        "input": {"text": tts_text},
+        "voice": {
+            "languageCode": "hi-IN",
+            "name": "hi-IN-Wavenet-D",   # male, neural
+            "ssmlGender": "MALE"
+        },
+        "audioConfig": {
+            "audioEncoding": "MP3",
+            "speakingRate": 0.85,         # slightly slower — suits poetry
+            "pitch": -1.0,               # slightly lower — warmer, more considered
+            "effectsProfileId": ["headphone-class-device"]
+        }
+    }
+
+    try:
+        resp = requests.post(
+            f"https://texttospeech.googleapis.com/v1/text:synthesize?key={GCP_TTS_API_KEY}",
+            json=payload,
+            timeout=30
+        )
+        if resp.status_code != 200:
+            print(f"TTS API error {resp.status_code}: {resp.text[:300]}")
+            return None
+
+        audio_content = resp.json().get("audioContent")
+        if not audio_content:
+            print("TTS response missing audioContent")
+            return None
+
+        audio_bytes = base64.b64decode(audio_content)
+        with open(output_path, "wb") as f:
+            f.write(audio_bytes)
+        print(f"Voiceover saved: {output_path} ({len(audio_bytes) / 1024:.1f} KB)")
+
+        # Get duration via ffprobe
+        probe = subprocess.run(
+            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+             "-of", "default=noprint_wrappers=1:nokey=1", output_path],
+            capture_output=True, text=True
+        )
+        duration = float(probe.stdout.strip())
+        print(f"Voiceover duration: {duration:.2f}s")
+        return duration
+
+    except Exception as e:
+        print(f"Voiceover generation failed: {e}")
+        return None
+
+
+# ============================================================
 # CREATE REEL VIDEO
 # ============================================================
 def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
@@ -409,14 +469,25 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
 
     layout = measure_layout(lines, poem_title, hindi_font, latin_font)
 
-    # Timing (frames @ 30fps), all timings values are seconds*30. So if you want something to happen for 1 second, the actual value should be set to 30 
-    TITLE_FADE   = 15   # panel + title + brand fade in together       (~0.5s) - how long the panel and title take to fade in from invisible to fully visible. It's an animated transition, not a hold.
-    TITLE_HOLD   = 60   # title + brand alone                          (~2.0s) - after the title has fully appeared, how long it sits there alone before the poem starts coming in. This is the pause where someone reads the poem name.
-    STANZA_TRANS = 40   # poem fades in slowly                         (~1.3s) - fade in time for the stanza 
-    STANZA_HOLD  = 240  # full poem hold                               (~8.0s) - after the poem has fully arrived, how long it stays on screen before anything else happens. This is the reading time — the most important one to get right.
-    BRAND_FADE   = 45   # same as TITLE_FADE so brand appears together (~1.5s) - how long "द Thoughts Within" takes to fade in at the bottom.
-    BRAND_HOLD   = 0   # not needed anymore                            (~2.0s) - how long the brand stays visible before the video ends.
-    
+    # --- Voiceover ---
+    vo_path = os.path.join(tmpdir, "voiceover.mp3")
+    vo_duration = generate_voiceover(stanza_text, vo_path)
+    has_voiceover = vo_duration is not None and os.path.exists(vo_path)
+
+    # --- Timing ---
+    TITLE_FADE   = 15   # panel + title + brand fade in together  (~0.5s)
+    TITLE_HOLD   = 60   # title + brand alone                     (~2.0s)
+    STANZA_TRANS = 40   # poem fades in                           (~1.3s)
+
+    # Voiceover starts at the moment the poem begins fading in.
+    # STANZA_HOLD = voiceover duration in frames + 1s tail, or fixed 240 if no voiceover.
+    if has_voiceover:
+        STANZA_HOLD = math.ceil(vo_duration * FPS) + 30   # +1s tail after voice ends
+        print(f"STANZA_HOLD set to {STANZA_HOLD} frames ({STANZA_HOLD/FPS:.1f}s) from voiceover")
+    else:
+        STANZA_HOLD = 240
+        print("STANZA_HOLD set to 240 frames (fallback, no voiceover)")
+
     frames_dir = os.path.join(tmpdir, "frames")
     os.makedirs(frames_dir, exist_ok=True)
     frame_idx = 0
@@ -429,35 +500,87 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
     def frame(ta, sa, so, ba):
         return draw_frame(bg_photo, panel_theme, layout, lines, poem_title, ta, sa, so, ba)
 
-    # Phase 1: Panel + title + brand fade in together
+    # Phase 1: Panel + title + brand fade in
     for f in range(TITLE_FADE):
         t = ease_out((f + 1) / TITLE_FADE)
         emit(frame(int(255 * t), 0, 0, int(255 * t)))
-    
+
     # Phase 2: Title + brand hold alone
     f_title = frame(255, 0, 0, 255)
     for _ in range(TITLE_HOLD):
         emit(f_title)
-    
-    # Phase 3: Poem fades in slowly, no movement
+
+    # Phase 3: Poem fades in slowly
     for f in range(STANZA_TRANS):
         t = ease_out((f + 1) / STANZA_TRANS)
         emit(frame(255, int(255 * t), 0, 255))
-    
-    # Phase 4: Everything holds
+
+    # Phase 4: Everything holds (voiceover plays during this phase)
     f_hold = frame(255, 255, 0, 255)
     for _ in range(STANZA_HOLD):
         emit(f_hold)
-    
-    # Phases 5 + 6 removed — brand visible from start
 
     total_frames   = frame_idx
     total_duration = round(total_frames / FPS, 3)
     print(f"Total: {total_duration}s | {total_frames} frames")
 
     frames_pattern = os.path.join(frames_dir, "frame_%06d.jpg")
+    has_music = music_path and os.path.exists(music_path)
 
-    if music_path and os.path.exists(music_path):
+    # --- FFmpeg command ---
+    #
+    # Inputs:
+    #   0: frames (video)
+    #   1: music (looped, optional)
+    #   2: voiceover (optional)
+    #
+    # Audio filter:
+    #   music at 15% volume, voice at 100%, mixed together.
+    #   amix duration=longest so neither cuts the other short,
+    #   but the whole thing is capped by -t total_duration.
+
+    if has_voiceover and has_music:
+        # Voiceover starts when poem fades in (after TITLE_FADE + TITLE_HOLD frames)
+        vo_delay_s = (TITLE_FADE + TITLE_HOLD) / FPS
+        audio_filter = (
+            f"[1:a]volume=0.15[music];"
+            f"[2:a]volume=1.0,adelay={int(vo_delay_s * 1000)}|{int(vo_delay_s * 1000)}[voice];"
+            f"[music][voice]amix=inputs=2:duration=longest[aout]"
+        )
+        cmd = [
+            "ffmpeg", "-y",
+            "-framerate", str(FPS), "-i", frames_pattern,
+            "-stream_loop", "-1", "-i", music_path,
+            "-i", vo_path,
+            "-filter_complex", audio_filter,
+            "-map", "0:v:0", "-map", "[aout]",
+            "-c:v", "libx264", "-profile:v", "high", "-level", "4.0",
+            "-preset", "fast", "-b:v", "3500k", "-maxrate", "4000k",
+            "-bufsize", "8000k", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-ar", "44100",
+            "-t", str(total_duration), "-movflags", "+faststart", output_path
+        ]
+
+    elif has_voiceover and not has_music:
+        # Voiceover only — pad silence before it starts
+        vo_delay_s = (TITLE_FADE + TITLE_HOLD) / FPS
+        audio_filter = (
+            f"[1:a]volume=1.0,adelay={int(vo_delay_s * 1000)}|{int(vo_delay_s * 1000)}[aout]"
+        )
+        cmd = [
+            "ffmpeg", "-y",
+            "-framerate", str(FPS), "-i", frames_pattern,
+            "-i", vo_path,
+            "-filter_complex", audio_filter,
+            "-map", "0:v:0", "-map", "[aout]",
+            "-c:v", "libx264", "-profile:v", "high", "-level", "4.0",
+            "-preset", "fast", "-b:v", "3500k", "-maxrate", "4000k",
+            "-bufsize", "8000k", "-pix_fmt", "yuv420p",
+            "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-ar", "44100",
+            "-t", str(total_duration), "-movflags", "+faststart", output_path
+        ]
+
+    elif has_music and not has_voiceover:
         cmd = [
             "ffmpeg", "-y",
             "-framerate", str(FPS), "-i", frames_pattern,
@@ -469,7 +592,9 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
             "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-ar", "44100",
             "-t", str(total_duration), "-movflags", "+faststart", output_path
         ]
+
     else:
+        # No audio at all
         cmd = [
             "ffmpeg", "-y",
             "-framerate", str(FPS), "-i", frames_pattern,
