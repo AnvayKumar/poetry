@@ -43,6 +43,7 @@ jobs:
           CLOUDINARY_API_KEY: ${{ secrets.CLOUDINARY_API_KEY }}
           CLOUDINARY_API_SECRET: ${{ secrets.CLOUDINARY_API_SECRET }}
           UNSPLASH_ACCESS_KEY: ${{ secrets.UNSPLASH_ACCESS_KEY }}
+          GCP_TTS_API_KEY: ${{ secrets.GCP_TTS_API_KEY }}
         run: python post_reel.py
 
       - name: Commit updated posting history
