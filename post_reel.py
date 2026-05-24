@@ -6,13 +6,11 @@ import os
 import csv
 import glob
 import json
-import math
 import random
 import time
 import subprocess
 import requests
 import tempfile
-import base64
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 from io import StringIO, BytesIO
 
@@ -25,7 +23,6 @@ CLOUDINARY_CLOUD_NAME = os.environ.get("CLOUDINARY_CLOUD_NAME", "")
 CLOUDINARY_API_KEY = os.environ.get("CLOUDINARY_API_KEY", "")
 CLOUDINARY_API_SECRET = os.environ.get("CLOUDINARY_API_SECRET", "")
 UNSPLASH_ACCESS_KEY = os.environ.get("UNSPLASH_ACCESS_KEY", "")
-GCP_TTS_API_KEY = os.environ.get("GCP_TTS_API_KEY", "")
 
 SHEET_ID = "1Rh_LmGQ9khrYX-9vBh9SkK9ygS-j0LcjQig65TS7DLI"
 SHEET_CSV_URL   = f"https://docs.google.com/spreadsheets/d/{SHEET_ID}/export?format=csv&gid=0"
@@ -385,77 +382,6 @@ def draw_frame(bg_photo, panel_theme, layout, lines, poem_title,
 
 
 # ============================================================
-# GENERATE VOICEOVER via Google Cloud TTS
-# ============================================================
-def generate_voiceover(stanza_text, output_path):
-    """
-    Calls the Google Cloud TTS REST API with hi-IN-Wavenet-D (male, neural).
-    Writes an MP3 to output_path and returns the audio duration in seconds.
-    Falls back gracefully if the API key is missing or the call fails.
-    """
-    if not GCP_TTS_API_KEY:
-        print("GCP_TTS_API_KEY not set — skipping voiceover")
-        return None
-
-    print("Generating voiceover via Google Cloud TTS...")
-
-    # Build SSML: each line separated by a 700ms break so the listener
-    # has space to absorb each line before the next one arrives.
-    lines = [l.strip() for l in stanza_text.split("\n") if l.strip()]
-    ssml_lines = '<break time="700ms"/>'.join(lines)
-    ssml = f'<speak>{ssml_lines}</speak>'
-
-    payload = {
-        "input": {"ssml": ssml},
-        "voice": {
-            "languageCode": "hi-IN",
-            "name": "hi-IN-Wavenet-B",   # male, neural (D is female despite the name)
-            "ssmlGender": "MALE"
-        },
-        "audioConfig": {
-            "audioEncoding": "MP3",
-            "speakingRate": 0.85,         # slightly slower — suits poetry
-            "pitch": -1.0,               # slightly lower — warmer, more considered
-            "effectsProfileId": ["headphone-class-device"]
-        }
-    }
-
-    try:
-        resp = requests.post(
-            f"https://texttospeech.googleapis.com/v1/text:synthesize?key={GCP_TTS_API_KEY}",
-            json=payload,
-            timeout=30
-        )
-        if resp.status_code != 200:
-            print(f"TTS API error {resp.status_code}: {resp.text[:300]}")
-            return None
-
-        audio_content = resp.json().get("audioContent")
-        if not audio_content:
-            print("TTS response missing audioContent")
-            return None
-
-        audio_bytes = base64.b64decode(audio_content)
-        with open(output_path, "wb") as f:
-            f.write(audio_bytes)
-        print(f"Voiceover saved: {output_path} ({len(audio_bytes) / 1024:.1f} KB)")
-
-        # Get duration via ffprobe
-        probe = subprocess.run(
-            ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-             "-of", "default=noprint_wrappers=1:nokey=1", output_path],
-            capture_output=True, text=True
-        )
-        duration = float(probe.stdout.strip())
-        print(f"Voiceover duration: {duration:.2f}s")
-        return duration
-
-    except Exception as e:
-        print(f"Voiceover generation failed: {e}")
-        return None
-
-
-# ============================================================
 # CREATE REEL VIDEO
 # ============================================================
 def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
@@ -471,24 +397,11 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
 
     layout = measure_layout(lines, poem_title, hindi_font, latin_font)
 
-    # --- Voiceover ---
-    vo_path = os.path.join(tmpdir, "voiceover.mp3")
-    vo_duration = generate_voiceover(stanza_text, vo_path)
-    has_voiceover = vo_duration is not None and os.path.exists(vo_path)
-
-    # --- Timing ---
+    # Timing (frames @ 30fps)
     TITLE_FADE   = 15   # panel + title + brand fade in together  (~0.5s)
     TITLE_HOLD   = 60   # title + brand alone                     (~2.0s)
     STANZA_TRANS = 40   # poem fades in                           (~1.3s)
-
-    # Voiceover starts at the moment the poem begins fading in.
-    # STANZA_HOLD = voiceover duration in frames + 1s tail, or fixed 240 if no voiceover.
-    if has_voiceover:
-        STANZA_HOLD = math.ceil(vo_duration * FPS) + 30   # +1s tail after voice ends
-        print(f"STANZA_HOLD set to {STANZA_HOLD} frames ({STANZA_HOLD/FPS:.1f}s) from voiceover")
-    else:
-        STANZA_HOLD = 240
-        print("STANZA_HOLD set to 240 frames (fallback, no voiceover)")
+    STANZA_HOLD  = 240  # full poem hold                          (~8.0s)
 
     frames_dir = os.path.join(tmpdir, "frames")
     os.makedirs(frames_dir, exist_ok=True)
@@ -517,7 +430,7 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
         t = ease_out((f + 1) / STANZA_TRANS)
         emit(frame(255, int(255 * t), 0, 255))
 
-    # Phase 4: Everything holds (voiceover plays during this phase)
+    # Phase 4: Everything holds
     f_hold = frame(255, 255, 0, 255)
     for _ in range(STANZA_HOLD):
         emit(f_hold)
@@ -527,62 +440,8 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
     print(f"Total: {total_duration}s | {total_frames} frames")
 
     frames_pattern = os.path.join(frames_dir, "frame_%06d.jpg")
-    has_music = music_path and os.path.exists(music_path)
 
-    # --- FFmpeg command ---
-    #
-    # Inputs:
-    #   0: frames (video)
-    #   1: music (looped, optional)
-    #   2: voiceover (optional)
-    #
-    # Audio filter:
-    #   music at 15% volume, voice at 100%, mixed together.
-    #   amix duration=longest so neither cuts the other short,
-    #   but the whole thing is capped by -t total_duration.
-
-    if has_voiceover and has_music:
-        # Voiceover starts when poem fades in (after TITLE_FADE + TITLE_HOLD frames)
-        vo_delay_s = (TITLE_FADE + TITLE_HOLD) / FPS
-        audio_filter = (
-            f"[1:a]volume=0.15[music];"
-            f"[2:a]volume=1.0,adelay={int(vo_delay_s * 1000)}|{int(vo_delay_s * 1000)}[voice];"
-            f"[music][voice]amix=inputs=2:duration=longest[aout]"
-        )
-        cmd = [
-            "ffmpeg", "-y",
-            "-framerate", str(FPS), "-i", frames_pattern,
-            "-stream_loop", "-1", "-i", music_path,
-            "-i", vo_path,
-            "-filter_complex", audio_filter,
-            "-map", "0:v:0", "-map", "[aout]",
-            "-c:v", "libx264", "-profile:v", "high", "-level", "4.0",
-            "-preset", "fast", "-b:v", "3500k", "-maxrate", "4000k",
-            "-bufsize", "8000k", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-ar", "44100",
-            "-t", str(total_duration), "-movflags", "+faststart", output_path
-        ]
-
-    elif has_voiceover and not has_music:
-        # Voiceover only — pad silence before it starts
-        vo_delay_s = (TITLE_FADE + TITLE_HOLD) / FPS
-        audio_filter = (
-            f"[1:a]volume=1.0,adelay={int(vo_delay_s * 1000)}|{int(vo_delay_s * 1000)}[aout]"
-        )
-        cmd = [
-            "ffmpeg", "-y",
-            "-framerate", str(FPS), "-i", frames_pattern,
-            "-i", vo_path,
-            "-filter_complex", audio_filter,
-            "-map", "0:v:0", "-map", "[aout]",
-            "-c:v", "libx264", "-profile:v", "high", "-level", "4.0",
-            "-preset", "fast", "-b:v", "3500k", "-maxrate", "4000k",
-            "-bufsize", "8000k", "-pix_fmt", "yuv420p",
-            "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-ar", "44100",
-            "-t", str(total_duration), "-movflags", "+faststart", output_path
-        ]
-
-    elif has_music and not has_voiceover:
+    if music_path and os.path.exists(music_path):
         cmd = [
             "ffmpeg", "-y",
             "-framerate", str(FPS), "-i", frames_pattern,
@@ -594,9 +453,7 @@ def create_reel_video(stanza_text, poem_title, music_path, output_path, tmpdir):
             "-c:a", "aac", "-b:a", "128k", "-ac", "2", "-ar", "44100",
             "-t", str(total_duration), "-movflags", "+faststart", output_path
         ]
-
     else:
-        # No audio at all
         cmd = [
             "ffmpeg", "-y",
             "-framerate", str(FPS), "-i", frames_pattern,
