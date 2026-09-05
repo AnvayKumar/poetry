@@ -356,21 +356,25 @@ def upload_image(image_path):
     print("Uploading image...")
     if not IMGBB_API_KEY:
         raise ValueError("IMGBB_API_KEY not set.")
-
     with open(image_path, "rb") as f:
         image_data = base64.b64encode(f.read()).decode("utf-8")
-
     response = requests.post(
         "https://api.imgbb.com/1/upload",
-        data={"key": IMGBB_API_KEY, "image": image_data, "expiration": 3600}
+        data={"key": IMGBB_API_KEY, "image": image_data}
     )
     result = response.json()
-    if result.get("success"):
-        url = result["data"]["url"]
-        print(f"Image uploaded: {url}")
-        return url
-    else:
+    if not result.get("success"):
         raise Exception(f"Image upload failed: {result}")
+
+    url = result["data"]["url"]
+
+    # Verify the URL is actually live before handing it to Instagram
+    check = requests.head(url, timeout=10)
+    if check.status_code != 200 or "image" not in check.headers.get("Content-Type", ""):
+        raise Exception(f"ImgBB URL failed verification: {url} (status {check.status_code})")
+
+    print(f"Image uploaded and verified: {url}")
+    return url
 
 
 def post_to_instagram(image_url, caption):
