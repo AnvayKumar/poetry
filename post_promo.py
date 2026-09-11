@@ -361,14 +361,24 @@ def upload_image(image_path):
 def post_to_instagram(image_url, caption):
     print("Posting to Instagram...")
     create_url = f"https://graph.facebook.com/v18.0/{INSTAGRAM_BUSINESS_ACCOUNT_ID}/media"
-    result = requests.post(create_url, data={
-        "image_url": image_url,
-        "caption": caption,
-        "access_token": PAGE_ACCESS_TOKEN
-    }).json()
 
-    if "id" not in result:
-        raise Exception(f"Failed to create container: {result}")
+    max_retries = 3
+    for attempt in range(max_retries):
+        time.sleep(3)  # let ImgBB's CDN settle before Meta tries to fetch
+        result = requests.post(create_url, data={
+            "image_url": image_url,
+            "caption": caption,
+            "access_token": PAGE_ACCESS_TOKEN
+        }).json()
+
+        if "id" in result:
+            break
+
+        if attempt < max_retries - 1:
+            print(f"Container creation failed (attempt {attempt + 1}/{max_retries}), retrying in 5s: {result}")
+            time.sleep(5)
+        else:
+            raise Exception(f"Failed to create container: {result}")
 
     container_id = result["id"]
     print(f"Container created: {container_id}")
